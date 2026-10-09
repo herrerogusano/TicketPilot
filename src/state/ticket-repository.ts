@@ -33,8 +33,322 @@ export type Phase2Ticket = {
   ai_call_attempts: number;
 };
 
+export type SlackDecision = "APPROVE" | "REJECT";
+
+export type PendingDecisionEvent = {
+  hubspot_ticket_id: string;
+  workflow_instance_id: string;
+  decision: SlackDecision;
+  decision_by: string;
+  decision_at: string;
+  proposal_hash: string;
+  proposal_revision: number;
+  decision_event_delivery_attempts: number;
+};
+
+export type SlackReviewState = {
+  hubspot_ticket_id: string;
+  workflow_instance_id: string;
+  state: string;
+  evidence_status: string | null;
+  proposal_hash: string | null;
+  proposal_revision: number;
+  slack_team_id: string | null;
+  slack_channel: string | null;
+  slack_message_ts: string | null;
+  slack_review_started_at: string | null;
+  slack_review_deadline: string | null;
+  slack_post_status: "NOT_STARTED" | "IN_PROGRESS" | "POSTED" | "FAILED" | "UNKNOWN";
+  slack_post_started_at: string | null;
+  decision: SlackDecision | null;
+  decision_by: string | null;
+  decision_at: string | null;
+  decision_event_pending: number;
+  decision_event_delivery_attempts: number;
+};
+
 export class TicketRepository {
   constructor(private readonly db: D1Database) {}
+
+  async getSlackReviewState(ticketId: string): Promise<SlackReviewState | null> {
+    return this.db
+      .prepare(`SELECT hubspot_ticket_id, workflow_instance_id, state, evidence_status,
+          proposal_hash, proposal_revision, slack_team_id, slack_channel, slack_message_ts,
+          slack_review_started_at, slack_review_deadline, slack_post_status,
+          slack_post_started_at, decision,
+          decision_by, decision_at, decision_event_pending,
+          decision_event_delivery_attempts
+        FROM tickets WHERE hubspot_ticket_id = ?`)
+      .bind(ticketId)
+      .first<SlackReviewState>();
+  }
+
+  async reserveSlackPost(ticketId: string, now = new Date()): Promise<boolean> {
+    const result = await this.db
+      .prepare(`UPDATE tickets SET slack_post_status = 'IN_PROGRESS', slack_post_started_at = ?,
+          slack_post_attempts = 1, updated_at = ?
+        WHERE hubspot_ticket_id = ? AND proposal_hash IS NOT NULL AND decision IS NULL
+          AND slack_post_status = 'NOT_STARTED'
+          AND state IN ('AWAITING_APPROVAL', 'NEEDS_MANUAL_REVIEW')`)
+      .bind(now.toISOString(), now.toISOString(), ticketId)
+      .run();
+    return (result.meta.changes ?? 0) === 1;
+  }
+
+  async completeSlackPost(
+    ticketId: string,
+    teamId: string,
+    channelId: string,
+    messageTs: string,
+    now = new Date(),
+  ): Promise<boolean> {
+    const at = now.toISOString();
+    const results = await this.db.batch([
+      this.db
+        .prepare(`UPDATE tickets SET slack_post_status = 'POSTED', slack_team_id = ?,
+            slack_channel = ?, slack_message_ts = ?, slack_review_started_at = ?,
+            slack_review_deadline = ?, updated_at = ?
+          WHERE hubspot_ticket_id = ? AND slack_post_status = 'IN_PROGRESS'
+            AND proposal_hash IS NOT NULL`)
+        .bind(
+          teamId,
+          channelId,
+          messageTs,
+          at,
+          new Date(now.getTime() + 48 * 60 * 60 * 1_000).toISOString(),
+          at,
+          ticketId,
+        ),
+      this.db
+        .prepare(`INSERT INTO events (id, ticket_id, event_type, at, details_redacted_json)
+          SELECT ?, ?, 'SLACK_REVIEW_POSTED', ?, ? WHERE changes() = 1
+          ON CONFLICT (id) DO NOTHING`)
+        .bind(
+          `slack-review-posted-${ticketId}`,
+          ticketId,
+          at,
+          JSON.stringify({ channel_id: channelId, message_ts: messageTs }),
+        ),
+    ]);
+    return (results[0]?.meta.changes ?? 0) === 1;
+  }
+
+  async failSlackPost(
+    ticketId: string,
+    outcome: "FAILED" | "UNKNOWN",
+    errorCode: "SLACK_POST_REJECTED" | "SLACK_POST_OUTCOME_UNKNOWN",
+    now = new Date(),
+  ): Promise<boolean> {
+    const at = now.toISOString();
+    const results = await this.db.batch([
+      this.db
+        .prepare(`UPDATE tickets SET slack_post_status = ?, state = CASE
+            WHEN state IN ('AWAITING_APPROVAL', 'NEEDS_MANUAL_REVIEW')
+              THEN 'NEEDS_MANUAL_REVIEW' ELSE state END,
+            error_code = ?, updated_at = ?
+          WHERE hubspot_ticket_id = ? AND slack_post_status = 'IN_PROGRESS'`)
+        .bind(outcome, errorCode, at, ticketId),
+      this.db
+        .prepare(`INSERT INTO events (id, ticket_id, event_type, at, details_redacted_json)
+          SELECT ?, ?, 'SLACK_REVIEW_POST_FAILED', ?, ? WHERE changes() = 1
+          ON CONFLICT (id) DO NOTHING`)
+        .bind(
+          `slack-review-post-failed-${ticketId}`,
+          ticketId,
+          at,
+          JSON.stringify({ outcome, code: errorCode }),
+        ),
+    ]);
+    return (results[0]?.meta.changes ?? 0) === 1;
+  }
+
+  async failStaleSlackPost(
+    ticketId: string,
+    staleBefore: Date,
+    now = new Date(),
+  ): Promise<boolean> {
+    const at = now.toISOString();
+    const results = await this.db.batch([
+      this.db
+        .prepare(`UPDATE tickets SET slack_post_status = 'UNKNOWN', state = CASE
+            WHEN state IN ('AWAITING_APPROVAL', 'NEEDS_MANUAL_REVIEW')
+              THEN 'NEEDS_MANUAL_REVIEW' ELSE state END,
+            error_code = 'SLACK_POST_OUTCOME_UNKNOWN', updated_at = ?
+          WHERE hubspot_ticket_id = ? AND slack_post_status = 'IN_PROGRESS'
+            AND slack_post_started_at IS NOT NULL AND slack_post_started_at <= ?`)
+        .bind(at, ticketId, staleBefore.toISOString()),
+      this.db
+        .prepare(`INSERT INTO events (id, ticket_id, event_type, at, details_redacted_json)
+          SELECT ?, ?, 'SLACK_REVIEW_POST_FAILED', ?, ? WHERE changes() = 1
+          ON CONFLICT (id) DO NOTHING`)
+        .bind(
+          `slack-review-post-failed-${ticketId}`,
+          ticketId,
+          at,
+          JSON.stringify({ outcome: "UNKNOWN", code: "SLACK_POST_OUTCOME_UNKNOWN" }),
+        ),
+    ]);
+    return (results[0]?.meta.changes ?? 0) === 1;
+  }
+
+  async recordSlackDecision(input: {
+    ticketId: string;
+    proposalHash: string;
+    proposalRevision: number;
+    teamId: string;
+    channelId: string;
+    messageTs: string;
+    decision: SlackDecision;
+    actorId: string;
+    now?: Date;
+  }): Promise<boolean> {
+    const at = (input.now ?? new Date()).toISOString();
+    const statements = [
+      this.db
+        .prepare(`UPDATE tickets SET decision = ?, decision_by = ?, decision_at = ?,
+            state = CASE WHEN ? = 'APPROVE' THEN 'APPROVED' ELSE 'REJECTED' END,
+            decision_event_pending = 1, decision_event_delivery_attempts = 0,
+            decision_event_delivered_at = NULL, error_code = NULL, updated_at = ?
+          WHERE hubspot_ticket_id = ? AND proposal_hash = ? AND proposal_revision = ?
+            AND slack_team_id = ? AND slack_channel = ? AND slack_message_ts = ?
+            AND slack_post_status = 'POSTED' AND decision IS NULL
+            AND slack_review_deadline IS NOT NULL AND slack_review_deadline > ?
+            AND ((? = 'APPROVE' AND state = 'AWAITING_APPROVAL'
+                  AND evidence_status = 'SUPPORTED' AND length(trim(draft_reply)) > 0
+                  AND json_valid(policy_keys_json) AND json_array_length(policy_keys_json) > 0
+                  AND json_valid(policy_evidence_json)
+                  AND json_array_length(policy_evidence_json) > 0)
+              OR (? = 'REJECT' AND state IN ('AWAITING_APPROVAL', 'NEEDS_MANUAL_REVIEW')))`)
+        .bind(
+          input.decision,
+          input.actorId,
+          at,
+          input.decision,
+          at,
+          input.ticketId,
+          input.proposalHash,
+          input.proposalRevision,
+          input.teamId,
+          input.channelId,
+          input.messageTs,
+          at,
+          input.decision,
+          input.decision,
+        ),
+      this.db
+        .prepare(`INSERT INTO events (id, ticket_id, event_type, at, details_redacted_json)
+          SELECT ?, ?, ?, ?, ? WHERE changes() = 1 ON CONFLICT (id) DO NOTHING`)
+        .bind(
+          `slack-decision-${input.ticketId}-${input.proposalRevision}`,
+          input.ticketId,
+          input.decision === "APPROVE" ? "SLACK_APPROVED" : "SLACK_REJECTED",
+          at,
+          JSON.stringify({
+            decision: input.decision,
+            actor_id: input.actorId,
+            proposal_hash: input.proposalHash,
+            proposal_revision: input.proposalRevision,
+          }),
+        ),
+    ];
+    const results = await this.db.batch(statements);
+    return (results[0]?.meta.changes ?? 0) === 1;
+  }
+
+  async listPendingDecisionEvents(limit = 5): Promise<PendingDecisionEvent[]> {
+    const boundedLimit = Math.max(0, Math.min(Math.trunc(limit), 5));
+    if (boundedLimit === 0) return [];
+    const result = await this.db
+      .prepare(`SELECT hubspot_ticket_id, workflow_instance_id, decision, decision_by,
+          decision_at, proposal_hash, proposal_revision, decision_event_delivery_attempts
+        FROM tickets WHERE decision_event_pending = 1
+          AND decision_event_delivery_attempts < 3
+          AND decision IS NOT NULL AND proposal_hash IS NOT NULL
+        ORDER BY decision_at ASC, hubspot_ticket_id ASC LIMIT ?`)
+      .bind(boundedLimit)
+      .all<PendingDecisionEvent>();
+    return result.results;
+  }
+
+  async reserveDecisionEventAttempt(ticketId: string): Promise<PendingDecisionEvent | null> {
+    return this.db
+      .prepare(`UPDATE tickets SET decision_event_delivery_attempts = decision_event_delivery_attempts + 1
+        WHERE hubspot_ticket_id = ? AND decision_event_pending = 1
+          AND decision_event_delivery_attempts < 3
+        RETURNING hubspot_ticket_id, workflow_instance_id, decision, decision_by,
+          decision_at, proposal_hash, proposal_revision, decision_event_delivery_attempts`)
+      .bind(ticketId)
+      .first<PendingDecisionEvent>();
+  }
+
+  async markDecisionEventDelivered(
+    event: PendingDecisionEvent,
+    now = new Date(),
+  ): Promise<boolean> {
+    const at = now.toISOString();
+    const results = await this.db.batch([
+      this.db
+        .prepare(`UPDATE tickets SET decision_event_pending = 0,
+            decision_event_delivered_at = ?, updated_at = ?
+          WHERE hubspot_ticket_id = ? AND decision_event_pending = 1
+            AND decision = ? AND proposal_hash = ? AND proposal_revision = ?`)
+        .bind(
+          at,
+          at,
+          event.hubspot_ticket_id,
+          event.decision,
+          event.proposal_hash,
+          event.proposal_revision,
+        ),
+      this.db
+        .prepare(`INSERT INTO events (id, ticket_id, event_type, at, details_redacted_json)
+          SELECT ?, ?, 'DECISION_EVENT_DELIVERED', ?, ? WHERE changes() = 1
+          ON CONFLICT (id) DO NOTHING`)
+        .bind(
+          `decision-event-delivered-${event.hubspot_ticket_id}-${event.proposal_revision}`,
+          event.hubspot_ticket_id,
+          at,
+          JSON.stringify({ decision: event.decision, proposal_revision: event.proposal_revision }),
+        ),
+    ]);
+    return (results[0]?.meta.changes ?? 0) === 1;
+  }
+
+  async markDecisionEventDeliveryExhausted(ticketId: string, now = new Date()): Promise<void> {
+    const at = now.toISOString();
+    await this.db.batch([
+      this.db
+        .prepare(`UPDATE tickets SET error_code = 'DECISION_EVENT_DELIVERY_EXHAUSTED', updated_at = ?
+          WHERE hubspot_ticket_id = ? AND decision_event_pending = 1
+            AND decision_event_delivery_attempts >= 3`)
+        .bind(at, ticketId),
+      this.db
+        .prepare(`INSERT INTO events (id, ticket_id, event_type, at, details_redacted_json)
+          SELECT ?, ?, 'DECISION_EVENT_DELIVERY_EXHAUSTED', ?, '{}'
+          WHERE EXISTS (SELECT 1 FROM tickets WHERE hubspot_ticket_id = ?
+            AND decision_event_pending = 1 AND decision_event_delivery_attempts >= 3)
+          ON CONFLICT (id) DO NOTHING`)
+        .bind(`decision-event-exhausted-${ticketId}`, ticketId, at, ticketId),
+    ]);
+  }
+
+  async expireSlackReview(ticketId: string, now = new Date()): Promise<boolean> {
+    const at = now.toISOString();
+    const results = await this.db.batch([
+      this.db
+        .prepare(`UPDATE tickets SET state = 'EXPIRED', updated_at = ?
+          WHERE hubspot_ticket_id = ? AND state IN ('AWAITING_APPROVAL', 'NEEDS_MANUAL_REVIEW')
+            AND decision IS NULL AND slack_post_status = 'POSTED'
+            AND slack_review_deadline IS NOT NULL AND slack_review_deadline <= ?`)
+        .bind(at, ticketId, at),
+      this.db
+        .prepare(`INSERT INTO events (id, ticket_id, event_type, at, details_redacted_json)
+          SELECT ?, ?, 'SLACK_REVIEW_EXPIRED', ?, '{}'
+          WHERE changes() = 1 ON CONFLICT (id) DO NOTHING`)
+        .bind(`slack-review-expired-${ticketId}`, ticketId, at),
+    ]);
+    return (results[0]?.meta.changes ?? 0) === 1;
+  }
 
   async getPhase2Ticket(ticketId: string): Promise<Phase2Ticket | null> {
     return this.db

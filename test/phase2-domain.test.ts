@@ -95,6 +95,24 @@ describe("Phase 2 policy selection and prompting", () => {
     );
   });
 
+  it("pins response language from ticket text before bounded prompt truncation", () => {
+    for (const seed of seedCases.filter((item) => item.key !== "unknown-unrelated")) {
+      const prompt = buildPrompt({ subject: seed.subject, body: seed.content, policies: docs });
+      expect(prompt.system).toContain("trusted reply-language metadata is English");
+      expect(prompt.system).toContain("write summary, draft_reply, and rationale in English");
+    }
+    const spanish = buildPrompt({
+      subject: "Ayuda con mi factura",
+      body: "Necesito revisar el cobro duplicado.",
+      policies: docs,
+    });
+    expect(spanish.system).toContain("trusted reply-language metadata is Spanish");
+    expect(spanish.system).toContain("write summary, draft_reply, and rationale in Spanish");
+    expect(
+      detectTicketLanguage("El plan Premium falla", "El plan no se activa correctamente."),
+    ).toBe("es");
+  });
+
   it("rejects malformed JSON, unknown citations, and claims without evidence", () => {
     expect(validateProposalOutput("not-json", docs)).toEqual({ kind: "invalid_format" });
     expect(

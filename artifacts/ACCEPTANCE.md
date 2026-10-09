@@ -15,7 +15,7 @@ This report records observed results, not predicted outcomes. Implementation rem
 | Gate | Observed evidence | Result |
 | --- | --- | --- |
 | Types / lint | Supervisor `npm run typecheck`, `npm run lint` | Passed |
-| Tests | Supervisor `npm test`: 8 files, 50 tests | Passed at phase 2 |
+| Tests | Supervisor `npm test`: 13 files, 76 tests | Passed at phase 3 |
 | Admission / recovery | Local real D1 constraints, duplicate overlap, daily quota, deterministic create recovery, bounded retries | UNIT / INTEGRATION_MOCKED |
 | HubSpot setup | Read and disposable associated note verified | LIVE_PROVIDER, passed |
 | HubSpot seed | Five fictitious tickets created/read back; repeat `--apply` reused all five | LIVE_PROVIDER, passed |
@@ -26,23 +26,28 @@ This report records observed results, not predicted outcomes. Implementation rem
 | Slack setup | Workspace authentication, channel post and cleanup | LIVE_PROVIDER, passed; not secured application decision |
 | Resend setup | Prior owner-only setup mail accepted and inbox confirmed | Setup only, does not satisfy application E2E |
 | Hosting | Actual Worker upload/triggers, `/health` 200 configured true | LIVE_PROVIDER, passed |
-| Remote D1 | Migrations 0001, 0002 and 0003 applied | LIVE_PROVIDER, passed |
+| Remote D1 | Migrations 0001 through 0004 applied | LIVE_PROVIDER, passed |
 | Production discovery | Actual cron admitted five once; next cron found same five, claimed/started zero; ledger/count remained five, attempts1 | LIVE_PROVIDER, passed including repeat polling |
 | CI | Phase-0 CI and both phase-1 PR/push checks succeeded | Passed |
 | CD | Release quality passed; deploy job deliberately skipped | Pending scoped credential authorization |
 | Real human approval | No application Slack proposal/button gate yet | Not run |
 | Application inbox | No application email sent | Not run |
 
+The read-only preflight repeated at01:03:41Z passed all attempted authentication/read checks and Free-plan checks. Its overall `incomplete` result reflects intentionally unrun disposable-write and setup-inference probes; the original phase0 smoke evidence remains separate. It did not send another email or regenerate application proposals.
+
+Manual inspection of these four actual drafts found corresponding-policy suggestions and no claim that account/payment changes had already been performed. English seed inputs nevertheless yielded Spanish drafts, and some access cases were classified generically as TECHNICAL. That is an observed language/classification limitation, not an accuracy benchmark. Future prompts receive an explicit trusted language instruction; immutable existing proposals are not silently regenerated.
+
 ## Deployment
 
 - Verified URL: https://ticketpilot-api.herrerogusano-ticketpilot.workers.dev
-- Current phase-2 version: `9827444f-6f71-40df-8e90-aa4f27c1b769`.
+- Current phase-3 version: `79abce2b-33e9-420b-ad61-6d7b3d69df7f`.
 - Local protected Wrangler bootstrap, not verified GitHub CD.
 - D1, AI, Workflow and `*/5 * * * *` scheduled bindings were returned by actual deployment. The scheduled configuration was also read back from the authenticated API.
-- Unsigned Slack requests still reject by default; phase-3 decision handling is not deployed yet.
+- Secured phase-3 decision handling is deployed; actual unsigned POST returned401. Health returned200/configuredtrue. The transient protected plaintext deployment file was removed and its absence verified.
 - Observed health request: 2 ms CPU / 3 ms wall time. This is only that health invocation, not processing CPU evidence.
 - Phase-1 source initially failed without an HTTP response. A receiver-safe global Fetch wrapper fixed the runtime issue; diagnostic version `2513722f-01c4-4e9e-9cd2-55fb272f8591` observed actual successful scheduled processing at 00:45:32Z (CPU24ms, wall4320ms, outcome ok). This is measured, not a claim that every invocation stays below 10ms. No paid upgrade occurred.
 - Free's nominal CPU allowance is10ms; official documentation describes flexibility for infrequent bursts, not guaranteed higher capacity. Intake was reduced and deployed at one ticket per poll to leave headroom (daily cap20 unchanged); targeted15 regression tests passed. Associated-note reconciliation is capped at10 to bound worst-case retry traffic. The revised intake's production peak CPU is not yet measured.
+- Phase2 tail observed five successful Workflow invocations at aggregate CPU37–47ms (not per-step measurements), and repeat cron CPU12/14ms with outcome ok. Those cron invocations exceed the nominal Free10ms, so this demonstration does not establish sustained CPU-limit compliance. No automatic Paid change is permitted; quota/runtime failures must remain explicit blockers rather than be hidden.
 
 ## External blockers and human gates
 
