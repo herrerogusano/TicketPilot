@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export type EmailDeliveryRow = {
   hubspot_ticket_id: string;
+  subject: string;
   state: string;
   evidence_status: string | null;
   proposal_hash: string | null;
@@ -54,7 +55,7 @@ export class EmailDeliveryRepository {
 
   async get(ticketId: string): Promise<EmailDeliveryRow | null> {
     return this.db
-      .prepare(`SELECT hubspot_ticket_id, state, evidence_status, proposal_hash,
+      .prepare(`SELECT hubspot_ticket_id, subject, state, evidence_status, proposal_hash,
           proposal_revision, decision, decision_by, decision_at, slack_team_id,
           category, priority, proposal_summary, policy_keys_json,
           slack_channel, slack_message_ts, slack_post_status, slack_review_deadline,
@@ -72,7 +73,7 @@ export class EmailDeliveryRepository {
     const boundedLimit = Math.max(0, Math.min(Math.trunc(limit), 1));
     if (boundedLimit === 0) return [];
     const result = await this.db
-      .prepare(`SELECT hubspot_ticket_id, state, evidence_status, proposal_hash,
+      .prepare(`SELECT hubspot_ticket_id, subject, state, evidence_status, proposal_hash,
           proposal_revision, category, priority, proposal_summary, policy_keys_json,
           decision, decision_by, decision_at, slack_team_id, slack_channel,
           slack_message_ts, slack_post_status, slack_review_deadline,

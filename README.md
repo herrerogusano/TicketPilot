@@ -14,6 +14,8 @@ HubSpot tagged demo tickets → five-minute Cron → atomic D1 admission
 
 Only tickets beginning with literal `[TP-DEMO]` and created after the configured launch cutoff are eligible. The backend, not the model or ticket content, chooses the sole test recipient. A provider acceptance is not evidence of inbox delivery.
 
+Outgoing email keeps the ticket reason in its subject (the sanitized original ticket title, without its intake tag). Its plain-text body is exactly the approved draft reply. Category, priority, summary and policy metadata remain internal to Slack review and the CRM audit; they are not appended to the email. The mandatory demo marker and ticket ID remain in the subject.
+
 ## Stack and scope
 
 - One TypeScript Cloudflare Worker: native Fetch API, Workflows, D1 and Workers AI.
@@ -27,7 +29,7 @@ The complete implementation and acceptance contract is in [PLAN.md](PLAN.md). Op
 
 The demo Worker [health endpoint](https://ticketpilot-api.herrerogusano-ticketpilot.workers.dev/health) and complete technical process are deployed. Five real synthetic tickets and Notion policies were verified. Live signed-simulator scenarios produced one accepted Resend email plus one directly verified associated HubSpot note, a rejection with zero sends, and an insufficient-evidence manual case. Duplicate callbacks did not duplicate side effects.
 
-The owner subsequently approved Premium in Slack, rejected password reset and confirmed the particular Premium email arrived. Both associated notes were directly verified; rejected and manual cases sent nothing. Supervisor checks now pass 124 tests, with 86.88% domain/adapter branch coverage. Actual GitHub CD run37874057267 (attempt2) migrated, deployed and verified health successfully. See [acceptance evidence](artifacts/ACCEPTANCE.md) for evidence provenance and limitations.
+The owner subsequently approved Premium in Slack, rejected password reset and confirmed the particular Premium email arrived. Both associated notes were directly verified; rejected and manual cases sent nothing. A further owner-approved manual ticket also completed with one send/associated note and confirmed inbox arrival. Supervisor checks now pass 126 tests, with 86.73% domain/adapter branch coverage including customer-email presentation and legacy payload compatibility. Actual GitHub CD run37874057267 (attempt2) migrated, deployed and verified health successfully; subsequent releases are recorded in Actions. See [acceptance evidence](artifacts/ACCEPTANCE.md) for evidence provenance and limitations.
 
 ## Local development
 
@@ -67,7 +69,7 @@ npm run verify:e2e
 
 ## Hosting and release
 
-The private repository's release branch is `master`. GitHub Actions checks types, lint and coverage before remote D1 migrations, deployment and actual health verification. The dedicated encrypted Actions secret is configured and `TICKETPILOT_DEPLOY_ENABLED=true`. The real deploy job passed; prior skipped jobs remain historical CI-only evidence. The token expires November 9, 2026 and needs explicit renewal before then. Workflows required owner-authorized account-level Workers Scripts Write in addition to D1 Write and Account Settings Read; its scope is not limited to this Worker. No billing grants were added.
+The private repository's release branch is `master`. GitHub Actions checks types, lint and coverage before remote D1 migrations, deployment and actual health verification. The dedicated encrypted Actions secret is configured and `TICKETPILOT_DEPLOY_ENABLED=true`. The real deploy job passed; prior skipped jobs remain historical CI-only evidence. At the owner's explicit request, the replacement token has no expiration; revoke it if compromised or no longer needed. Workflows required owner-authorized account-level Workers Scripts Write in addition to D1 Write and Account Settings Read; its scope is not limited to this Worker. No billing grants were added.
 
 Local protected bootstrap deployment is separate from verified CD. Configure account/resource IDs in `wrangler.jsonc`; use Wrangler secrets for provider keys and the immutable recipient. No public administration, seed, debug approval or send endpoint is allowed.
 

@@ -1,5 +1,9 @@
 # Operations
 
+## Customer email presentation
+
+New payload reservations use the sanitized stored ticket title as the subject reason and exactly the approved draft as the plain-text body. Classification, priority, summary and evidence remain internal. No migration or historical rewrite is needed. A safely retriable legacy reservation keeps its exact saved JSON/hash and legacy subject; completed or ambiguous sends must never be resent to update their appearance.
+
 This is a synthetic demonstration, not a customer-mail service. Never change a recipient from ticket text, increase permissions to hide an authentication error, or enable paid billing to make a test pass.
 
 ## Inspect without disclosing content
@@ -34,7 +38,7 @@ npm run deploy
 
 The last two commands mutate the remote demo and require authenticated, scoped access. A deployment is verified by actual success, `/health`, bindings and scenario evidence, not an expected URL. GitHub Actions only deploys from `master` after quality gates and when the explicit deployment switch is enabled. Keep that switch false while its credential is missing or revoked; never upload Wrangler's local OAuth token as a CI workaround.
 
-GitHub CD is now enabled and provider-verified. The dedicated token expires November9,2026. Its explicitly authorized Workers Scripts Write is account-level because the individual Worker editor grant failed on Workflows; D1 Write and Account Settings Read remain included, no billing grants. Renew explicitly or disable the switch on expiry/revocation. The pipeline checks current master SHA before remote writes and redacts provider email labels while preserving failure exit codes with pipefail. Earlier failed-run logs may contain Wrangler's account label; never copy raw logs into evidence or public reports.
+GitHub CD is enabled and provider-verified. The replacement dedicated token has no expiration, explicitly authorized by the owner. Its Workers Scripts Write is account-level because the individual Worker editor grant failed on Workflows; D1 Write and Account Settings Read remain included, no billing grants. Disable the deployment switch before revocation or credential replacement; verify a deployment with the replacement before retiring the old token. A non-expiring token remains usable until revoked, so rotate it on suspected disclosure. The pipeline checks current master SHA before remote writes and redacts provider email labels while preserving failure exit codes with pipefail. Earlier failed-run logs may contain Wrangler's account label; never copy raw logs into evidence or public reports.
 
 If a provider returns 401/403, confirm the correct demo account and existing least-privilege grants. A Resend send-only key cannot list domains: that failure is not a reason to broaden it. Notion root sharing and Slack bot channel membership are separate from token validity. Redact provider error bodies and credentials before recording diagnostics.
 
