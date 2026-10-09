@@ -14,6 +14,7 @@ import {
   dispatchDecisionEvent,
   reconcilePendingDecisionEvents,
 } from "./state/decision-events";
+import { isEventMaintenanceDue, pruneExpiredEvents } from "./state/event-retention";
 import { TicketRepository } from "./state/ticket-repository";
 import { reconcilePendingCrmAudits } from "./workflows/email-delivery";
 
@@ -122,18 +123,27 @@ export default {
   async fetch(request, env, ctx): Promise<Response> {
     return routeRequest(request, env, env, ctx);
   },
-  async scheduled(_controller, env): Promise<void> {
-    await runScheduledTasks(env);
+  async scheduled(controller, env): Promise<void> {
+    await runScheduledTasks(env, undefined, new Date(controller.scheduledTime));
   },
 } satisfies ExportedHandler<Env>;
 
 export async function runScheduledTasks(
   env: Env,
   source: HubSpotDiscoverySource = new HubSpotClient(env.HUBSPOT_SERVICE_KEY),
+  now = new Date(),
 ): Promise<void> {
   if (!validateRuntimeConfig(env)) {
     logEvent("cron.skipped_not_configured");
     return;
+  }
+  if (isEventMaintenanceDue(now)) {
+    try {
+      const removed = await pruneExpiredEvents(env.DB, now);
+      logEvent("cron.events_pruned", { removed });
+    } catch {
+      logEvent("cron.event_retention_failed");
+    }
   }
   try {
     const delivery = await reconcilePendingDecisionEvents(

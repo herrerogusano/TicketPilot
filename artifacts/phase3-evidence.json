@@ -1,0 +1,21 @@
+{
+  "evidence_label": "LIVE_PROVIDER",
+  "worker_version": "79abce2b-33e9-420b-ad61-6d7b3d69df7f",
+  "remote_migration": "0004_slack_review.sql",
+  "supervisor_tests": { "files": 13, "tests": 76, "passed": true },
+  "health_status": 200,
+  "configured": true,
+  "unsigned_slack_status": 401,
+  "transient_plaintext_file_removed": true,
+  "manual_only_ticket_id": "437245230283",
+  "slack_post_status": "POSTED",
+  "slack_post_attempts": 1,
+  "slack_message_ts": "1791509348.772139",
+  "approval_available": false,
+  "application_email_sent": false,
+  "supported_tickets_unposted": 4,
+  "slack_transport": "signed_http",
+  "interactivity_url_saved_and_reloaded": true,
+  "human_click_evidence": false,
+  "github_cd_verified": false
+}

@@ -1,0 +1,17 @@
+{
+  "generated_at": "2026-10-09T02:06:44.604Z",
+  "evidence_label": "LIVE_PROVIDER",
+  "mode": "read_only_provider_and_ledger_verification",
+  "approved_with_receipt_and_verified_note": [
+    "436649189587"
+  ],
+  "rejected_without_email": [
+    "437259884759"
+  ],
+  "unknown_manual_no_email": true,
+  "technical_scenarios_passed": true,
+  "human_evidence_source": null,
+  "human_click_and_inbox_confirmed": false,
+  "status": "PENDING_HUMAN_LIVE_ACCEPTANCE",
+  "note": "D1 provider receipts are checked, not independently fetched from send-only Resend. A signed simulator is not a human click; overall DONE also requires all other project gates."
+}

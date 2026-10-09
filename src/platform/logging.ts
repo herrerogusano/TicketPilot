@@ -6,6 +6,8 @@ const eventNames = [
   "cron.decision_events_failed",
   "cron.crm_audits_reconciled",
   "cron.crm_audits_failed",
+  "cron.events_pruned",
+  "cron.event_retention_failed",
   "slack.background_failed",
   "route.rejected",
 ] as const;

@@ -25,7 +25,9 @@ The complete implementation and acceptance contract is in [PLAN.md](PLAN.md). Op
 
 ## Current verified status
 
-Implementation is in progress. The demo Worker [health endpoint](https://ticketpilot-api.herrerogusano-ticketpilot.workers.dev/health) is deployed. Provider credential smoke checks succeeded; they do **not** certify the application's end-to-end flow. See `artifacts/EXECUTION_STATE.md` and the phase evidence files for current facts.
+The demo Worker [health endpoint](https://ticketpilot-api.herrerogusano-ticketpilot.workers.dev/health) and complete technical process are deployed. Five real synthetic tickets and Notion policies were verified. Live signed-simulator scenarios produced one accepted Resend email plus one directly verified associated HubSpot note, a rejection with zero sends, and an insufficient-evidence manual case. Duplicate callbacks did not duplicate side effects.
+
+Supervisor checks:119 passing tests;86.88% meaningful domain/adapter branch coverage. These technical results are **not DONE**: a genuine owner Slack click/inbox confirmation and the separately authorized GitHub deployment credential remain pending. Local deployment is not GitHub CD. See [acceptance evidence](artifacts/ACCEPTANCE.md) and [the human demo steps](docs/DEMO.md).
 
 ## Local development
 
@@ -47,6 +49,22 @@ Copy `.dev.vars.example` to an ignored `.dev.vars` only on a nonsynced, access-r
 
 `npm run seed:notion -- --help` also performs no probes. `npm run seed:notion` verifies existing policies or reports missing pages; `-- --apply` creates only missing fictional pages under the configured root. It verifies content and refuses duplicate keys or changed content rather than overwriting existing pages. Preserve its ignored manifest too.
 
+Additional verification commands, with configured demo process credentials:
+
+```sh
+npm run test:integration
+npm run test:coverage
+npm run smoke
+npm run security:audit
+npm run verify:e2e
+```
+
+`test:integration` selects real local Workers/D1/Workflow tests with controlled external providers; it is not a live-provider test. Coverage uses Istanbul, compatible with the Workers test runtime. `smoke` performs real read-only health, HubSpot eligibility, Notion page and D1 checks, plus an unsigned action rejection; it creates no inference, Slack post or email. `security:audit` compares tracked and unignored project files against configured secrets/recipient in memory, without printing them; it is not a guarantee about unknown historical credentials.
+
+`verify:e2e` checks persisted scenario outcomes and directly reads the actual HubSpot note association. Missing scenarios or human evidence produce a pending report and nonzero exit. Provider receipts, signed simulations, physical clicks and inbox confirmation are never conflated. Only the owner who actually clicked and inspected the particular email should run `npm run verify:e2e -- --record-human-evidence` in an interactive credential-configured terminal; exact ticket/receipt confirmations are required. The local ignored attestation is explicitly operator testimony, not independent inbox telemetry.
+
+`simulate:decision` is CLI-only and excluded from production. It accepts only a fresh posted supported seed from the ignored manifest; Approve additionally requires `--allow-demo-email`. It records `SIGNED_SLACK_SIMULATOR`, not human testimony, and refuses reruns of an uncertain existing simulator record. The already tested approval/rejection must not be replayed to send another demonstration email.
+
 ## Hosting and release
 
 The private repository's release branch is `master`. GitHub Actions checks types, lint and tests before the gated release job applies remote D1 migrations and deploys. The dedicated Cloudflare credential and `TICKETPILOT_DEPLOY_ENABLED=true` must be configured before calling CD operational. A passing quality job with a skipped deployment is **not** a successful release.
@@ -60,5 +78,7 @@ Local protected bootstrap deployment is separate from verified CD. Configure acc
 - Slack signature verification, actor/workspace/channel allowlists and first-wins persistence protect decisions. A signed simulator is an integration test, not a real human click.
 - No claim of permanent exactly-once email delivery: uncertain provider outcomes stop automated sends, and Resend's idempotency window is finite. Audit-note recovery must never resend an accepted email.
 - Only synthetic material is suitable for this demo. It is not a production customer-email service or a benchmark of general answer accuracy.
+- Redacted event history has30day retention, pruned in batches of at most100 on the hourly cron slot. Durable ticket approvals, immutable payloads, provider receipts and usage reservations are not deleted. Recent/high-volume backlogs drain over bounded passes; this is not an exact immediate TTL guarantee.
+- Actual repeat cron occasionally exceeded the nominal Free10ms CPU allowance while reporting success. This demonstrates observed behavior, not guaranteed sustained Free capacity. Current immutable English-input drafts are in Spanish; future prompts have tested language instructions, not a measured accuracy guarantee.
 
 Final presentation requires separately recorded live provider evidence, a real authorized Slack click, and owner confirmation of inbox arrival. Setup mail or mock tests do not satisfy those gates.
