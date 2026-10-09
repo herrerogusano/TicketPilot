@@ -1,8 +1,22 @@
 # TicketPilot execution checkpoint
 
+## Current result: real capture walkthrough completed
+
+- Ticket436734313687: original Slack card, edit modal, saved revision2, approval result and actual matching Gmail message captured. Protected verify:edit passed exact latest payload/revision and unique associated original+edited audit history. No simulated approval; physical click not recorded on video. README now leads with the actual screenshot sequence. Prior pending capture entries below are superseded.
+- Capture finish wake PID60168/session10002 active during publication; release and verify before final. No power-plan settings changed. Final publication and wake cleanup to be recorded in the PR to avoid a documentation-only release loop.
+- Documentation/media-only branch docs/real-demo-captures; runtime unchanged. Next: secret audit/diff check, commit/PR, existing CI/CD publication.
+
 Status: DONE for MVP and Slack editing. Actual provider readback plus owner confirmation closed the edited-delivery gate; see ACCEPTANCE and PR9/comment6081208702. Portfolio documentation/media packaging is the current work item, without application or provider-state changes. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by this entry.
 
 ## Portfolio presentation — 2026-10-09
+
+- Capture follow-up: owner opened modal in Slack tab25 and wrote customer reply. Assistant refined internal reason to avoid claiming a confirmed bug, aligned summary with manual investigation, captured modal and saved revision2. Slack UI confirmed revision2 and exact owner reply. New files live-slack-edit-modal.jpg/live-slack-edited.jpg; originals in outputs/ticketpilot-live. Pending actual OWNER APPROVE for ticket436734313687 and corresponding Gmail message (tab24). Do not repeat save or create. Prior next-action entry about opening/editing modal is superseded.
+- This follow-up wake PID58876/session75937 was released and process absence verified before owner handoff; power plan unchanged.
+
+- Follow-up in progress: owner requested actual ticket → Slack edit/approve → received-email screenshots, replacing the illustrative lead. New synthetic ticket436734313687 created/read back2026-10-09T16:00:15.004Z, markerTP_CAPTURE_20261009_01. Private creator journal capture-demo-create-attempt.json prevents duplicate creation. Do not recreate or simulate approval. Capture pending actual owner edit/approval and inbox evidence.
+- Temporary wake PID128948/session57036 released and process absence verified before owner handoff; power plan unchanged. Prior portfolio wake PID96132 was already released (PR10 comment6084270728). Start a new scoped wake request when capture work resumes.
+- Captured actual HubSpot overview/description and Slack original revision1 with controls in docs/media/live-*.jpg; source copies in projectless outputs/ticketpilot-live. README now uses these actual images locally; not yet committed/published while the sequence is incomplete. docs/DEMO updated by bounded Luna/high worker and supervisor-reviewed. Diff check and protected secret/recipient audit99files passed.
+- Next owner action: in Codex Slack tab13, Edit response for ticket436734313687, edit and leave modal open before saving; capture modal, then save, capture refreshed revision, request actual owner approval, capture result and particular inbox message, then verify:edit. No simulated action. HubSpot tab23 contains this ticket. Owner mailbox access/capture still pending. Read-only preflight provider reads passed; local Wrangler auth reports not_configured, requiring read-only verification recovery if verify:edit cannot run. Existing MVP acceptance stays DONE; current capture follow-up PENDING_HUMAN_LIVE_ACCEPTANCE.
 
 - Owner requested a stronger project description, README and screenshots/video. Branch docs/portfolio-presentation from clean master1205d22. One bounded Luna/high worker updated README/DEMO; supervisor owns visual assets, review, acceptance checkpoint and publication.
 - GitHub description updated and read back; visibility remains PRIVATE. English README explains business problem, process, safe editing, engineering choices, exact scope and evidence boundaries. Corrected obsolete pending human-edit claims against real completed acceptance.

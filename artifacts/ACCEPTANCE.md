@@ -101,3 +101,8 @@ The owner explicitly requested a non-expiring replacement with unchanged permiss
 Cloudflare Free and included usage limits were reviewed. No paid upgrade, purchased domain or billing setting change occurred. GitHub Free included Actions capacity was verified sufficient for the bounded checks. Slack's signup trial is not evidence of a permanent Free subscription; implementation must remain Free-compatible.
 
 Only known synthetic demo resources are in scope. No secrets or full recipient address belong in this report. Provider accepted, inbox delivered, simulated approval and real human approval remain distinct outcomes.
+# Real screenshot walkthrough — 2026-10-09
+
+Additional owner-requested synthetic ticket `436734313687` completed the real capture sequence: HubSpot intake, Slack original revision1, edited modal, saved revision2, recorded approval and actual Gmail receipt. Owner wrote the customer reply; assistant refined internal reason/summary and saved. The owner was handed approval and subsequently opened the received email. Signed decision was recorded at `2026-10-09T16:11:36.621Z`; the physical click itself was not recorded on video.
+
+Protected `npm run verify:edit -- --ticket 436734313687` returned `EDITED_PROVIDER_EVIDENCE_PASSED`: approved/sent revision2, exact latest text/payload hash, original and edited history in one uniquely associated HubSpot note. `LIVE_PROVIDER` evidence plus actual Gmail UI inspection: matching ticket subject and exact edited body visible in the inbox. No simulated decision. Actual screenshots and provenance are in `docs/media/MEDIA.md`; this is a sequence of stills, not a continuous screencast. Original MVP and prior acceptance remain valid.

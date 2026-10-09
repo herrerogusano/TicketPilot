@@ -6,11 +6,33 @@ Support teams handle repetitive questions whose safe answer depends on written p
 
 It connects ticket intake, policy lookup, AI drafting, durable workflow state, human approval, controlled email, and a CRM audit trail.
 
-![Animated TicketPilot walkthrough](docs/media/walkthrough.gif)
+## A real ticket, from intake to inbox
 
-*Illustrative animation, not a recording of provider dashboards or live evidence.*
+The following captures show the same synthetic ticket in the actual HubSpot and Slack interfaces.
 
-[Watch or download the 24-second MP4](docs/media/walkthrough.mp4) · [Static preview](docs/media/walkthrough-poster.png) · [Media provenance](docs/media/MEDIA.md)
+**1. A support ticket arrives in HubSpot.** Premium has been paid for, but its features are unavailable.
+
+![Synthetic Premium activation ticket in HubSpot](docs/media/live-hubspot-ticket.jpg)
+
+**2. TicketPilot proposes a reply in Slack.** The reviewer sees the draft, internal summary and policy evidence, and can edit, approve or reject it.
+
+![Original proposal with Edit response, Approve and Reject controls](docs/media/live-slack-original.jpg)
+
+**3. The reviewer changes the response.** This case is routed for manual investigation instead of sending the original troubleshooting suggestion. The internal reason records that change.
+
+![Slack edit form with customer reply and internal change reason](docs/media/live-slack-edit-modal.jpg)
+
+**4. Saving creates revision 2, awaiting approval.** The customer reply and internal summary now reflect the reviewer's decision. Saving has not sent an email.
+
+![Saved revision 2 awaiting explicit approval in Slack](docs/media/live-slack-edited.jpg)
+
+**5. The owner approves the edited version in Slack.** The card is replaced by a recorded approval. [View the approval result](docs/media/live-slack-approved.jpg).
+
+**6. The edited reply arrives in Gmail.** The subject preserves the ticket reason, and the body contains exactly the approved customer reply. Internal priority, summary and change reason stay out of the email.
+
+![Received email for the same ticket with the exact edited response](docs/media/live-gmail-received.jpg)
+
+All captures follow ticket 436734313687 on October 9, 2026. Read-only verification passed for approved/sent revision 2, the exact latest payload and the unique associated HubSpot audit note containing original and edited versions. Gmail was independently viewed with this particular received message open. [Capture provenance](docs/media/MEDIA.md).
 
 ## How it works
 

@@ -1,16 +1,25 @@
 # Demo walkthrough
 
-TicketPilot demonstrates a small support workflow using fictional HubSpot tickets, five fictional Notion policies, one Slack reviewer, and the Resend account owner's test mailbox. It never emails a ticket contact.
+TicketPilot demonstrates a small support workflow using fictional HubSpot tickets, five fictional Notion policies, one Slack reviewer, and the Resend account owner's test mailbox. It never emails a ticket contact. For a real-provider walkthrough, use the same synthetic ticket throughout and hide the recipient address in any mailbox view.
+
+## Live capture sequence
+
+Capture these views in order from the same run so the audience can follow the exact proposal that was edited, approved, and received:
+
+1. **HubSpot source ticket:** show its `[TP-DEMO]` subject and synthetic content, with ticket ID visible for correlation.
+2. **Original Slack proposal:** show the original draft, category/priority, cited Notion evidence, and available review controls.
+3. **Edit response modal:** show the proposed reply and internal change-reason fields before saving. Do not expose secrets or a full email address.
+4. **Saved revision:** show the refreshed Slack card with the edited revision. Saving alone is not approval.
+5. **Human approval:** capture the allowlisted reviewer physically selecting **Approve** on the refreshed card. A simulator response is not a human click.
+6. **Inbox confirmation and audit:** show the particular received message with its ticket subject and exact edited body; hide the recipient address. After sending, show the associated HubSpot audit note linking original and edited versions to the provider receipt.
+
+Keep the screenshots or screen recordings in this sequence, label them as live captures, and record the ticket ID and verification date in the media provenance. Do not imply inbox arrival from a Resend acceptance response alone. Until a capture is available, this sequence is a repeatable presentation guide rather than evidence for a new ticket.
 
 ![TicketPilot architecture](media/architecture.svg)
 
 *Architecture overview. See [media provenance](media/MEDIA.md) for context.*
 
-![Animated TicketPilot walkthrough](media/walkthrough.gif)
-
-*Illustrative animation, not a provider-dashboard screencast or evidence of a live action.*
-
-[Watch or download the 24-second MP4](media/walkthrough.mp4). The animation compresses timing; actual ticket intake uses the five-minute poll.
+The [illustrative animation](media/walkthrough.gif) and [24-second MP4](media/walkthrough.mp4) are optional background material, not the primary showcase or evidence of live provider actions. The animation compresses timing; actual ticket intake uses the five-minute poll.
 
 ## Walkthrough
 
