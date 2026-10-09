@@ -266,6 +266,54 @@ describe("Phase 4 approved-only email and audit Workflow", () => {
     }
   });
 
+  it("handles an allowlisted approval that lands after Slack post receipt but before review confirmation", async () => {
+    await insertProposal(firstId);
+    const providers = stubProviders();
+    const repository = new TicketRepository(env.DB);
+    const originalCompleteSlackPost = TicketRepository.prototype.completeSlackPost;
+    const completeSpy = vi
+      .spyOn(TicketRepository.prototype, "completeSlackPost")
+      .mockImplementation(async (ticketId, teamId, channelId, messageTs, now) => {
+        const posted = await originalCompleteSlackPost.call(
+          repository,
+          ticketId,
+          teamId,
+          channelId,
+          messageTs,
+          now,
+        );
+        if (posted) {
+          expect(
+            await repository.recordSlackDecision({
+              ticketId,
+              proposalHash: proposal.proposalHash,
+              proposalRevision: proposal.revision,
+              teamId,
+              channelId,
+              messageTs,
+              decision: "APPROVE",
+              actorId: actor,
+            }),
+          ).toBe(true);
+        }
+        return posted;
+      });
+    const workflow = await startWorkflow(firstId, "phase4-approval-after-slack-receipt");
+    try {
+      expect(await workflow.getOutput()).toMatchObject({ status: "completed" });
+      expect(providers.sendRequests).toHaveLength(1);
+      expect(providers.noteCalls).toHaveLength(1);
+      expect(await repository.getSlackReviewState(String(firstId))).toMatchObject({
+        decision: "APPROVE",
+        slack_post_status: "POSTED",
+        state: "COMPLETED",
+      });
+    } finally {
+      completeSpy.mockRestore();
+      await workflow.dispose();
+    }
+  });
+
   it("reconciles duplicate Workflow executions without resending or recreating the audit note", async () => {
     await insertProposal(firstId);
     await markPosted(firstId);
@@ -442,26 +490,44 @@ describe("Phase 4 approved-only email and audit Workflow", () => {
     }
   });
 
-  it("rejects, expiry, unsupported proposals, and malformed early events without sending", async () => {
+  it("does not send after a durable rejection", async () => {
     await insertProposal(firstId);
     await markPosted(firstId);
     await recordDecision(firstId, "REJECT");
-
-    const expiredId = firstId + 1;
-    await insertProposal(expiredId);
-    await markPosted(expiredId);
-    await env.DB.prepare("UPDATE tickets SET state = 'EXPIRED' WHERE hubspot_ticket_id = ?")
-      .bind(String(expiredId))
-      .run();
-
-    const unsupportedId = firstId + 2;
-    await insertProposal(unsupportedId, unsupportedProposal);
-
     const providers = stubProviders();
-    const reject = await startWorkflow(firstId, "phase4-reject");
-    const expired = await startWorkflow(expiredId, "phase4-expired");
-    const unsupported = await startWorkflow(unsupportedId, "phase4-unsupported", {
-      ticketId: String(unsupportedId),
+    const workflow = await startWorkflow(firstId, "phase4-rejected");
+    try {
+      expect(await workflow.getOutput()).toMatchObject({
+        status: "decision_received",
+        decision: "REJECT",
+      });
+      expect(providers.sendRequests).toHaveLength(0);
+    } finally {
+      await workflow.dispose();
+    }
+  });
+
+  it("does not send after an expired review", async () => {
+    await insertProposal(firstId);
+    await markPosted(firstId);
+    await env.DB.prepare("UPDATE tickets SET state = 'EXPIRED' WHERE hubspot_ticket_id = ?")
+      .bind(String(firstId))
+      .run();
+    const providers = stubProviders();
+    const workflow = await startWorkflow(firstId, "phase4-expired-review");
+    try {
+      expect(await workflow.getOutput()).toMatchObject({ status: "expired" });
+      expect(providers.sendRequests).toHaveLength(0);
+    } finally {
+      await workflow.dispose();
+    }
+  });
+
+  it("does not send from a preloaded approval event when proposal evidence is unsupported", async () => {
+    await insertProposal(firstId, unsupportedProposal);
+    const providers = stubProviders();
+    const workflow = await startWorkflow(firstId, "phase4-unsupported-early-event", {
+      ticketId: String(firstId),
       decision: "APPROVE",
       actorId: actor,
       decidedAt: new Date().toISOString(),
@@ -469,15 +535,10 @@ describe("Phase 4 approved-only email and audit Workflow", () => {
       proposalRevision: unsupportedProposal.revision,
     });
     try {
-      expect(await reject.getOutput()).toMatchObject({
-        status: "decision_received",
-        decision: "REJECT",
-      });
-      expect(await expired.getOutput()).toMatchObject({ status: "expired" });
-      expect(await unsupported.getOutput()).toMatchObject({ status: "manual_review" });
+      expect(await workflow.getOutput()).toMatchObject({ status: "manual_review" });
       expect(providers.sendRequests).toHaveLength(0);
     } finally {
-      await Promise.all([reject.dispose(), expired.dispose(), unsupported.dispose()]);
+      await workflow.dispose();
     }
   });
 

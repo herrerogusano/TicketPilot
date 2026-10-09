@@ -369,7 +369,7 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
     }
     if (state.decision !== null) {
       return durableDecisionAllowed(state, this.env.SLACK_APPROVER_USER_ID)
-        ? decisionResult(state.decision, proposal)
+        ? handleDurableDecision(step, this.env, ticketId, proposal, state)
         : { status: "manual_review", evidence_status: proposal.evidence_status };
     }
 
@@ -469,15 +469,6 @@ async function markSlackPostUnknownIfStale(
     new Date(startedAtMs + SLACK_POST_LEASE_MS),
     new Date(now),
   );
-}
-
-function decisionResult(decision: "APPROVE" | "REJECT", proposal: StoredProposal): Phase2Result {
-  return {
-    status: "decision_received",
-    decision,
-    evidence_status: proposal.evidence_status,
-    cited_policy_keys: proposal.cited_policy_keys,
-  };
 }
 
 function isTicketDecisionEvent(value: unknown): value is TicketDecisionEvent {
