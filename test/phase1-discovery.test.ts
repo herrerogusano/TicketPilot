@@ -494,7 +494,7 @@ describe("Phase 1 D1 admission and workflow recovery", () => {
     });
   });
 
-  it("bounds admissions and starts to five per polling invocation", async () => {
+  it("bounds admissions and starts to one per poll for Free CPU headroom", async () => {
     const repository = new TicketRepository(env.DB);
     const source = {
       async searchDemoTickets(): Promise<HubSpotTicket[]> {
@@ -513,9 +513,9 @@ describe("Phase 1 D1 admission and workflow recovery", () => {
     };
 
     const report = await runDiscovery({ cutoff, now, source, store: repository, workflows });
-    expect(report.claimed).toBe(5);
-    expect(report.workflowsStarted).toBe(5);
-    expect(created).toHaveLength(5);
+    expect(report.claimed).toBe(1);
+    expect(report.workflowsStarted).toBe(1);
+    expect(created).toHaveLength(1);
     expect(await repository.listKnownTicketIds(["6005", "6006", "6007"])).toEqual(new Set());
   });
 });

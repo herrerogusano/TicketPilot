@@ -1,0 +1,34 @@
+{
+  "phase": 1,
+  "observed_at_utc": "2026-10-09T00:45:32Z",
+  "offline": { "supervisor_typecheck": "passed", "supervisor_lint": "passed", "tests_passed": 22, "default_fetch_receiver_regression": "passed_separately" },
+  "hubspot_seed": { "created_and_read_back": 5, "repeat_apply_reused_same_tickets": 5, "new_tickets_on_repeat": 0 },
+  "remote_migrations": ["0001_init.sql", "0002_phase1_claim_recovery.sql"],
+  "production_discovery": {
+    "evidence": "LIVE_PROVIDER",
+    "trigger": "actual_scheduled_handler",
+    "found": 5,
+    "claimed": 5,
+    "workflows_started": 5,
+    "deferred": 0,
+    "d1_unique_rows": 5,
+    "daily_admission_count": 5,
+    "all_create_attempt_counts": 1,
+    "workflow_checked_output": "phase1_started",
+    "ai_calls": 0,
+    "email_calls": 0,
+    "repeat_cron_observation": { "observed_at_utc": "2026-10-09T00:50:32Z", "found": 5, "claimed": 0, "workflows_started": 0, "ticket_count_after": 5, "distinct_workflow_count_after": 5, "daily_admission_count_after": 5, "max_create_attempts_after": 1, "cpu_ms": 5, "wall_ms": 330, "outcome": "ok" },
+    "cpu_ms": 24,
+    "wall_ms": 4320,
+    "outcome": "ok"
+  },
+  "runtime_correction": {
+    "initial_observation": "source stage network error without HTTP response",
+    "change": "default global fetch invoked through receiver-safe lexical wrapper",
+    "live_result": "discovery succeeded after change",
+    "diagnostic_worker_version": "2513722f-01c4-4e9e-9cd2-55fb272f8591",
+    "security": "ignored isolated entrypoint preserved safe placeholder and rejected Slack actions; no debug public routes"
+  },
+  "ci": { "phase1_pr": "https://github.com/herrerogusano/TicketPilot/pull/1", "both_checks": "passed", "merged_master_commit": "88a9923" },
+  "cd": "pending_scoped_credential_not_verified"
+}

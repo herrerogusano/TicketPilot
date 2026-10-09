@@ -14,6 +14,7 @@
     "test": "vitest run",
     "preflight": "tsx scripts/preflight.ts",
     "seed:hubspot": "tsx scripts/seed-hubspot.ts",
+    "seed:notion": "tsx scripts/seed-notion.ts",
     "db:migrate:local": "wrangler d1 migrations apply ticketpilot-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply ticketpilot-db --remote",
     "deploy": "wrangler deploy"

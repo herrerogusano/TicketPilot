@@ -1,4 +1,11 @@
 import type { HubSpotTicket } from "../adapters/hubspot";
+import {
+  type PolicyEvidence,
+  policyEvidenceSchema,
+  proposalSchema,
+  type StoredProposal,
+  type TicketProposal,
+} from "../domain/contracts";
 
 export type WorkflowCreateStatus = "PENDING" | "CREATING" | "STARTED" | "MANUAL_REVIEW";
 
@@ -17,8 +24,212 @@ export type TicketRow = {
 
 export type ClaimResult = "claimed" | "duplicate" | "daily_limit";
 
+export type Phase2Ticket = {
+  hubspot_ticket_id: string;
+  subject: string;
+  hubspot_created_at: string;
+  state: string;
+  proposal_hash: string | null;
+  ai_call_attempts: number;
+};
+
 export class TicketRepository {
   constructor(private readonly db: D1Database) {}
+
+  async getPhase2Ticket(ticketId: string): Promise<Phase2Ticket | null> {
+    return this.db
+      .prepare(`SELECT hubspot_ticket_id, subject, hubspot_created_at, state,
+          proposal_hash, ai_call_attempts FROM tickets WHERE hubspot_ticket_id = ?`)
+      .bind(ticketId)
+      .first<Phase2Ticket>();
+  }
+
+  async getProposal(ticketId: string): Promise<StoredProposal | null> {
+    const row = await this.db
+      .prepare(`SELECT category, priority, evidence_status, proposal_summary,
+          draft_reply, policy_keys_json, proposal_rationale, policy_evidence_json,
+          proposal_hash, proposal_revision, prompt_version
+        FROM tickets WHERE hubspot_ticket_id = ? AND proposal_hash IS NOT NULL`)
+      .bind(ticketId)
+      .first<{
+        category: string | null;
+        priority: string | null;
+        evidence_status: string | null;
+        proposal_summary: string | null;
+        draft_reply: string | null;
+        policy_keys_json: string | null;
+        proposal_rationale: string | null;
+        policy_evidence_json: string | null;
+        proposal_hash: string;
+        proposal_revision: number;
+        prompt_version: string | null;
+      }>();
+    if (
+      row === null ||
+      row.category === null ||
+      row.priority === null ||
+      row.evidence_status === null ||
+      row.proposal_summary === null ||
+      row.draft_reply === null ||
+      row.policy_keys_json === null ||
+      row.proposal_rationale === null ||
+      row.policy_evidence_json === null ||
+      row.prompt_version === null
+    ) {
+      return null;
+    }
+    try {
+      const proposal = proposalSchema.parse({
+        category: row.category,
+        priority: row.priority,
+        evidence_status: row.evidence_status,
+        summary: row.proposal_summary,
+        draft_reply: row.draft_reply,
+        cited_policy_keys: JSON.parse(row.policy_keys_json) as unknown,
+        rationale: row.proposal_rationale,
+      });
+      const evidence = policyEvidenceSchema.parse(JSON.parse(row.policy_evidence_json) as unknown);
+      return {
+        ...proposal,
+        proposalHash: row.proposal_hash,
+        revision: row.proposal_revision,
+        promptVersion: row.prompt_version,
+        policyEvidence: evidence,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async beginProcessing(ticketId: string, now = new Date()): Promise<void> {
+    await this.db
+      .prepare(`UPDATE tickets SET state = 'PROCESSING', updated_at = ?
+        WHERE hubspot_ticket_id = ? AND state = 'DISCOVERED'
+          AND workflow_create_status IN ('CREATING', 'STARTED')`)
+      .bind(now.toISOString(), ticketId)
+      .run();
+  }
+
+  async reserveNotionRequestSlot(nowMs = Date.now()): Promise<number> {
+    const row = await this.db
+      .prepare(`UPDATE provider_rate_limits
+        SET next_slot_ms = MAX(next_slot_ms, ?) + 350
+        WHERE name = 'notion'
+        RETURNING next_slot_ms - 350 AS reserved_at_ms`)
+      .bind(nowMs)
+      .first<{ reserved_at_ms: number }>();
+    if (row === null) throw new Error("notion_rate_limit_unavailable");
+    return row.reserved_at_ms;
+  }
+
+  async reserveAiCall(
+    ticketId: string,
+    expectedAttempt: 1 | 2,
+    now = new Date(),
+  ): Promise<{ id: string; attempt: number } | null> {
+    const utcDay = now.toISOString().slice(0, 10);
+    await this.db
+      .prepare(
+        `INSERT INTO daily_usage (utc_day, accepted_ticket_count, ai_call_count)
+        VALUES (?, 0, 0) ON CONFLICT (utc_day) DO NOTHING`,
+      )
+      .bind(utcDay)
+      .run();
+    const ticket = await this.db
+      .prepare(
+        "SELECT ai_call_attempts FROM tickets WHERE hubspot_ticket_id = ? AND state = 'PROCESSING' AND proposal_hash IS NULL",
+      )
+      .bind(ticketId)
+      .first<{ ai_call_attempts: number }>();
+    if (ticket === null || ticket.ai_call_attempts !== expectedAttempt - 1) return null;
+    const id = crypto.randomUUID();
+    const attempt = expectedAttempt;
+    const inserted = await this.db
+      .prepare(
+        `INSERT INTO ai_call_reservations (id, ticket_id, utc_day, attempt_no, reserved_at)
+        VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING RETURNING id, attempt_no`,
+      )
+      .bind(id, ticketId, utcDay, attempt, now.toISOString())
+      .first<{ id: string; attempt_no: number }>();
+    if (inserted === null) return null;
+    return { id: inserted.id, attempt: inserted.attempt_no };
+  }
+
+  async saveProposal(
+    ticketId: string,
+    proposal: TicketProposal,
+    proposalHash: string,
+    promptVersion: string,
+    evidence: readonly PolicyEvidence[],
+    now = new Date(),
+  ): Promise<boolean> {
+    const state =
+      proposal.evidence_status === "SUPPORTED" ? "AWAITING_APPROVAL" : "NEEDS_MANUAL_REVIEW";
+    const updatedAt = now.toISOString();
+    const eventId = `proposal-${ticketId}-${proposalHash}`;
+    const statements = [
+      this.db
+        .prepare(`UPDATE tickets SET
+          category = ?, priority = ?, evidence_status = ?, proposal_summary = ?, draft_reply = ?,
+          policy_keys_json = ?, proposal_rationale = ?, policy_evidence_json = ?, proposal_hash = ?,
+          prompt_version = ?, state = ?, updated_at = ?
+        WHERE hubspot_ticket_id = ? AND state = 'PROCESSING' AND proposal_hash IS NULL`)
+        .bind(
+          proposal.category,
+          proposal.priority,
+          proposal.evidence_status,
+          proposal.summary,
+          proposal.draft_reply,
+          JSON.stringify(proposal.cited_policy_keys),
+          proposal.rationale,
+          JSON.stringify(evidence),
+          proposalHash,
+          promptVersion,
+          state,
+          updatedAt,
+          ticketId,
+        ),
+      this.db
+        .prepare(`INSERT INTO events (id, ticket_id, event_type, at, details_redacted_json)
+        SELECT ?, ?, ?, ?, ? WHERE changes() = 1 ON CONFLICT (id) DO NOTHING`)
+        .bind(
+          eventId,
+          ticketId,
+          proposal.evidence_status === "SUPPORTED" ? "PROPOSAL_PERSISTED" : "PROPOSAL_NEEDS_REVIEW",
+          updatedAt,
+          JSON.stringify({
+            proposal_hash: proposalHash,
+            revision: 1,
+            evidence_status: proposal.evidence_status,
+            cited_policy_keys: proposal.cited_policy_keys,
+            policy_keys: evidence.map((item) => item.key),
+            prompt_version: promptVersion,
+          }),
+        ),
+    ];
+    const results = await this.db.batch(statements);
+    return (results[0]?.meta.changes ?? 0) === 1;
+  }
+
+  async markProposalManualReview(
+    ticketId: string,
+    errorCode: string,
+    now = new Date(),
+  ): Promise<void> {
+    const updatedAt = now.toISOString();
+    const eventId = `phase2-error-${ticketId}-${errorCode}`;
+    await this.db.batch([
+      this.db
+        .prepare(`UPDATE tickets SET state = 'NEEDS_MANUAL_REVIEW', error_code = ?, updated_at = ?
+        WHERE hubspot_ticket_id = ? AND state = 'PROCESSING' AND proposal_hash IS NULL`)
+        .bind(errorCode, updatedAt, ticketId),
+      this.db
+        .prepare(`INSERT INTO events (id, ticket_id, event_type, at, details_redacted_json)
+        SELECT ?, ?, 'PROPOSAL_PROCESSING_FAILED', ?, ? WHERE changes() = 1
+        ON CONFLICT (id) DO NOTHING`)
+        .bind(eventId, ticketId, updatedAt, JSON.stringify({ code: errorCode })),
+    ]);
+  }
 
   async claimEligible(ticket: HubSpotTicket, now = new Date()): Promise<ClaimResult> {
     const utcDay = now.toISOString().slice(0, 10);
