@@ -262,6 +262,7 @@ export class HubSpotClient {
     ) {
       throw new HubSpotError("too_many_associated_notes");
     }
+    const matches: string[] = [];
     for (const association of associations?.results ?? []) {
       const noteRaw = await this.readJson(
         `/crm/v3/objects/notes/${encodeURIComponent(association.id)}?properties=hs_note_body&associations=tickets`,
@@ -273,10 +274,28 @@ export class HubSpotClient {
         note.data.properties.hs_note_body.includes(marker) &&
         note.data.associations?.tickets?.results.some((item) => item.id === ticketId)
       ) {
-        return note.data.id;
+        matches.push(note.data.id);
       }
     }
-    return null;
+    if (matches.length > 1) throw new HubSpotError("duplicate_audit_marker_matches");
+    return matches[0] ?? null;
+  }
+
+  async verifyAssociatedNote(ticketId: string, noteId: string, marker: string): Promise<boolean> {
+    assertTicketId(ticketId);
+    assertTicketId(noteId);
+    const raw = await this.readJson(
+      `/crm/v3/objects/notes/${encodeURIComponent(noteId)}?properties=hs_note_body&associations=tickets`,
+    );
+    if (raw === null) return false;
+    const parsed = noteReadSchema.safeParse(raw);
+    return (
+      parsed.success &&
+      parsed.data.id === noteId &&
+      typeof parsed.data.properties.hs_note_body === "string" &&
+      parsed.data.properties.hs_note_body.includes(marker) &&
+      parsed.data.associations?.tickets?.results.some((item) => item.id === ticketId) === true
+    );
   }
 
   private async readJson(
