@@ -1,6 +1,6 @@
 # TicketPilot execution checkpoint
 
-Status: phases 0–6 technical implementation/provider scenarios/documentation complete; final packaging PR checks in progress. Final acceptance remains BLOCKED_EXTERNAL_ACCESS plus PENDING_HUMAN_LIVE_ACCEPTANCE, not DONE. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by later entries.
+Status: phases 0–6 technical implementation/provider scenarios/documentation complete and merged with passing GitHub checks. Final acceptance remains BLOCKED_EXTERNAL_ACCESS plus PENDING_HUMAN_LIVE_ACCEPTANCE, not DONE. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by later entries.
 
 ## Coordination
 
@@ -11,9 +11,9 @@ Status: phases 0–6 technical implementation/provider scenarios/documentation c
 
 ## Safety and recovery
 
-- Temporary Windows display AND system wake request is active in PowerShell PID 113256, exec session 78877.
+- This run used a temporary Windows display AND system wake request in PowerShell PID 113256, exec session 78877. Process/session identifiers are historical, not proof that the request remains active after the run.
 - Script: C:\Users\herre\Documents\Codex\2026-10-09\nu\work\keep-awake.ps1.
-- No power-plan settings changed. Before any final response, release that exact request and verify process termination. Keep it active until then.
+- No power-plan settings changed. Final runtime cleanup must release that exact request and verify process termination before the final response. A resumed run must inspect current state before creating its own scoped request.
 - Credentials are user-scoped DPAPI files outside this OneDrive project, in the previous setup workspace's work/ticketpilot-secrets directory. Never print, commit or copy plaintext secrets into this repository/vault.
 - Prior setup smoke tests are NOT application E2E acceptance. Actual human Slack decisions and inbox confirmation remain required for final live acceptance.
 
@@ -117,3 +117,12 @@ Status: phases 0–6 technical implementation/provider scenarios/documentation c
 - Signed simulator rejectedCSV437259884759 twice(200/200,230/63ms); actualREJECTED/zeroResendattempts, Workflowcomplete/noerror. Unknown437245230283 remainsmanual/insufficient/noApprove/zeroAI+email.
 - Human gates reserved: physically Approve premium437231559928, Reject password436737423588; bothlivepostedawaiting/zeroemailattempts. Read-onlyverify:e2e confirmsallthree technicalcases but reportsPENDING_HUMAN_LIVE_ACCEPTANCE/nonzero. Do not execute operatorattestation autonomously or claim priorsetupemail receipt.
 - Finalremaining: Phase6 truthfulevidence/docs/vault, finalquality+GitPR5/releaseobservations, actualrepeatcron/CPU/quota readback, nosecret audit. CDtokenrequirespendingexplicitauthorization; no broadOAuthupload. Keepwake113256/78877 active until finalrelease.
+
+## Final technical handoff (supersedes historical remaining work)
+
+- Phase 5–6 commit b535cc8 and ancestry-only merge a9e8bd5: baseline93e91f5 and origin/master trees were identical before the merge. PR5 passed checks37873027894/37873044328 and merged master089b6e4; exact merged tree verified. Master CI37873158000 and release37873158017 quality passed; deploy skipped. Dedicated CD token not authorized/created/uploaded.
+- Supervisor gates: 119 tests/19 files; selected local integration79/11; coverage391/450 branches86.88% with80% per-file threshold; typecheck/lint/generated types/diff-check passed. Secret/recipient audit passed82files and production-dependency audit reported0vulnerabilities.
+- Real 02:00:32Z cron: CPU7ms/wall447ms/outcomeok; hourly retention removed0, discoveryfound5/claimed0/started0. Readback: fiveunique ticket/WorkflowIDs, admissioncount5, AIreservations4, maximumSlackpostattempt1. One transientCloudflare7403read recovered on bounded retry without changing auth or permissions; subsequentsmokepassed.
+- Actual verify:e2e confirms allthree technical scenarios and directly associated unique audit note, but intentionally reports PENDING_HUMAN_LIVE_ACCEPTANCE/nonzero. Do not rerun the signed simulators or restart accepted/ambiguous operations.
+- Remaining owner actions ONLY: authorize limited CI deployment access if desired; physically Approve premium437231559928 and Reject password436737423588 in the posted Slack messages, then confirm the particular premium email. Use protected commands in docs/DEMO.md, including operator-only interactive evidence recording after the actual actions. No missing implementation phase is hidden behind these gates.
+- Nonsensitive vault project/STATUS updated; no vault Git sync performed. Screen/system wake protection remains a run-scoped cleanup obligation: stop redacted tail16134, release helper78877 and verify originalPID113256 has exited immediately before final response. Do not infer an active wake request from this historical document after the response.

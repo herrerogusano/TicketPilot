@@ -37,7 +37,7 @@ This report records observed results, not predicted outcomes. Technical implemen
 | Remote D1 | Migrations0001–0006 applied | LIVE_PROVIDER, passed |
 | Event retention | 30-day event-only history/max 100 per hour; four local tests; actual hourly cron pruned zero old events | Local and LIVE_PROVIDER passed; durable receipts retained |
 | Production discovery | Actual cron admitted five once; next cron found same five, claimed/started zero; ledger/count remained five, attempts1 | LIVE_PROVIDER, passed including repeat polling |
-| CI | Phase0–4 checks succeeded; updated Phase4 PR/push37871812108/37871817158 passed | Passed; final packaging checks recorded below |
+| CI | Phase 5–6 PR/push runs 37873027894 / 37873044328 and master CI 37873158000 passed, including coverage gate | Passed |
 | CD | Release quality passed; deploy job deliberately skipped | Pending scoped credential authorization |
 | Real human approval | Premium…9928 Approve and password…3588 Reject are posted/awaiting, reserved for owner | Pending; simulators do not qualify |
 | Application inbox | One actual application email accepted in simulated technical case | Not confirmed; setup inbox proof does not qualify |
@@ -61,7 +61,7 @@ Manual inspection of these four actual drafts found corresponding-policy suggest
 - Final deployed repeat cron observed14ms/outcomeok before simulator decisions; five found/zero admitted/started. Tail subsequently observed completed application Workflow invocations at aggregate43ms and12ms/outcomeok (not per-step CPU). No paid upgrade occurred; nominal Free compliance is not guaranteed.
 - Simulator HTTP round trips were232/66ms for Approve and230/63ms for Reject, below3s in those four calls. This is measured client latency, not a worst-case guarantee.
 - The 02:00:32Z production cron completed with 7 ms CPU / 447 ms wall time, pruned zero expired events, found five tickets and claimed/started zero. Subsequent remote reads confirmed five distinct tickets/Workflow IDs, admission count five, four AI reservations and maximum one Slack post attempt. One prior read returned Cloudflare7403; the next bounded read and subsequent smoke passed without changing credentials or permissions.
-- Final local gates: 119 tests across 19 files, 79 selected integration tests across 11 files, typecheck/lint/diff-check passed. The 80% per-file branch threshold passed locally; GitHub verification follows the final packaging PR.
+- Final local gates: 119 tests across 19 files, 79 selected integration tests across 11 files, typecheck/lint/diff-check passed. The 80% per-file branch threshold passed locally and in GitHub. PR5 merged as master `089b6e4`; master CI37873158000 and release37873158017 quality succeeded. Its deploy job was skipped, and repository secret names remained empty with deployment switch false. This is explicitly not verified CD.
 - Phase4 source review fixed same-day ISO/SQLite cutoff comparisons, per-attempt cached429 reads, immutable retries/window limits, candidate-ID direct note verification and early approval-after-post continuation. Negative cases and real local Workflow executions are tested. Splitting a combined fixture removed test-only workerd cancellations; deliberate timeout diagnostic remains in its negative test with successful suite exit.
 
 ## External blockers and human gates
