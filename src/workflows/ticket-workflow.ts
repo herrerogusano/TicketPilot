@@ -8,7 +8,7 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
   override async run(
     _event: WorkflowEvent<TicketWorkflowParams>,
     step: WorkflowStep,
-  ): Promise<{ status: "not_started" }> {
-    return step.do("phase-0-safe-placeholder", async () => ({ status: "not_started" }));
+  ): Promise<{ status: "phase1_started" }> {
+    return step.do("phase-1-safe-placeholder", async () => ({ status: "phase1_started" }));
   }
 }

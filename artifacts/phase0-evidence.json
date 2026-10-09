@@ -1,0 +1,39 @@
+{
+  "phase": 0,
+  "checked_at_utc": "2026-10-09T00:11:11Z",
+  "bootstrap_commit": "344ad725caf85e9c7ee00ef5838063e3e3f97b1d",
+  "offline": {
+    "typecheck": "passed",
+    "lint": "passed",
+    "tests_passed": 8,
+    "tests_failed": 0,
+    "real_local_d1_migration": "passed"
+  },
+  "provider_preflight": {
+    "hubspot_ticket_read_note_write_and_association": "passed",
+    "notion_child_create_read_and_recoverable_trash": "passed",
+    "slack_auth_workspace_post_and_cleanup": "passed",
+    "workers_ai_json_inference": "passed",
+    "resend_send_only_key_prior_test": "provider_accepted_and_owner_inbox_confirmed_during_credential_setup",
+    "application_human_approval_and_email_e2e": "not_run"
+  },
+  "deployment": {
+    "method": "protected_local_wrangler_bootstrap",
+    "worker_url": "https://ticketpilot-api.herrerogusano-ticketpilot.workers.dev",
+    "version_id": "2adbb0c9-7840-4686-8604-805fb2770e29",
+    "health_status": 200,
+    "health_configured": true,
+    "unsigned_slack_status": 503,
+    "scheduled_processing": "safe_placeholder_only"
+  },
+  "github": {
+    "repository_visibility": "private",
+    "release_branch": "master",
+    "ci_run": "https://github.com/herrerogusano/TicketPilot/actions/runs/37863654967",
+    "ci_conclusion": "success",
+    "release_quality_run": "https://github.com/herrerogusano/TicketPilot/actions/runs/37863655008",
+    "release_quality_conclusion": "success",
+    "deployment_job": "skipped_pending_scoped_token_authorization",
+    "cd_gate": "pending_not_verified"
+  }
+}

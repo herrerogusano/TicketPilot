@@ -36,4 +36,17 @@ Status: implementation in progress, phase 1. PLAN.md and AGENTS.md remain author
 - Minimal Worker deployed with protected secrets file outside synced project; temporary plaintext file removed and absence checked. Version2adbb0c9-7840-4686-8604-805fb2770e29.
 - Verified URL: https://ticketpilot-api.herrerogusano-ticketpilot.workers.dev ; GET /health200 configuredtrue; unsigned POST /slack/actions503 (phase0 safe rejection). Cron and workflow attached but placeholder does not process tickets.
 - Phase1 next: HubSpot bounded discovery, atomic D1 admission/idempotency/recovery, five-case idempotent seed CLI and tests. No AI/drafts/email yet.
+- Reviewed phase0 commit344ad72 pushed to private https://github.com/herrerogusano/TicketPilot (default/release master); current implementation branch feat/ticket-discovery.
+- GitHub CI run37863654967 completed success; release run37863655008 quality gates success, deploy intentionally skipped because TICKETPILOT_DEPLOY_ENABLED=false. This is CI evidence, NOT CD acceptance.
+- Pending Cloudflare token form tightened after Worker creation: Individual Workers Editor scoped only to ticketpilot-api, plus account D1 Write and Account Settings Read, 30-day expiry. No token created yet. Browser tab14 is the review form; action-time authorization question still pending (original question named broader legacy Workers Scripts Write; final scope is narrower).
+- Browser session IDs changed on context recovery: iab browser2 currently has supervisor-created background tabs13 Slack,14 Cloudflare token review,15 GitHub billing. Tabs marked for handoff when relevant. Never rely on old browser1/tab3 handles; get a current inventory after missing-tab errors.
 - Implement phases 1–6 sequentially; update this checkpoint as work advances.
+
+## Latest supervisor checkpoint (supersedes historical pending entries above)
+
+- Display/system wake helper PID 113256 verified alive again after context recovery. Keep it active and release before any final response; no power-plan settings changed.
+- Phase 1 implementer reports 20 passing tests. Final supervisor review requested <=100 D1 bind parameters, fail-closed ambiguous seed-marker reconciliation, literal-prefix/both-timestamp revalidation, and prevention of exhausted recovery rows starving fresh discovery.
+- Migration 0002 remains LOCAL ONLY. No phase-1 deployment or five-ticket seed yet. Next: frozen handoff, supervisor quality gates, protected remote migration/seed/deploy, actual exactly-once discovery evidence.
+- Phase-1 instances finish a safe placeholder. Later supervisor may restart ONLY exact known seed instances after confirming phase1_started output and no side effects; never introduce general automatic restart or restart ambiguous-email states.
+- Ignored preflight-redacted.json was overwritten by an accidental old --help probe; corrected --help now exits without probes. Actual accepted phase-0 evidence is preserved in artifacts/phase0-evidence.json.
+- Scoped GitHub CD authorization remains pending; no Cloudflare token created, no deploy job verified. Continue independent implementation.

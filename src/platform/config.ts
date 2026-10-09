@@ -1,6 +1,25 @@
 import { z } from "zod";
 
 const notionPageId = /^(?:[a-f0-9]{32}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})$/i;
+const realSecret = (value: string): boolean =>
+  !/^(?:replace-|todo$|changeme$|placeholder)/i.test(value);
+const hubspotSecret = z.string().min(16).refine(realSecret);
+const notionSecret = z
+  .string()
+  .regex(/^(?:ntn_|secret_)[A-Za-z0-9_-]{20,}$/)
+  .refine(realSecret);
+const slackBotToken = z
+  .string()
+  .regex(/^xoxb-[A-Za-z0-9-]{20,}$/)
+  .refine(realSecret);
+const slackSigningSecret = z
+  .string()
+  .regex(/^[a-f0-9]{32}$/i)
+  .refine(realSecret);
+const resendSecret = z
+  .string()
+  .regex(/^re_[A-Za-z0-9_-]{20,}$/)
+  .refine(realSecret);
 
 export const runtimeConfigSchema = z.object({
   TICKETPILOT_ENV: z.literal("demo"),
@@ -10,11 +29,11 @@ export const runtimeConfigSchema = z.object({
   SLACK_TEAM_ID: z.string().regex(/^T[A-Z0-9]+$/),
   SLACK_APPROVER_USER_ID: z.string().regex(/^[UW][A-Z0-9]+$/),
   DEMO_START_AT: z.iso.datetime({ offset: true }),
-  HUBSPOT_SERVICE_KEY: z.string().min(1),
-  NOTION_TOKEN: z.string().min(1),
-  SLACK_BOT_TOKEN: z.string().min(1),
-  SLACK_SIGNING_SECRET: z.string().min(1),
-  RESEND_API_KEY: z.string().min(1),
+  HUBSPOT_SERVICE_KEY: hubspotSecret,
+  NOTION_TOKEN: notionSecret,
+  SLACK_BOT_TOKEN: slackBotToken,
+  SLACK_SIGNING_SECRET: slackSigningSecret,
+  RESEND_API_KEY: resendSecret,
   TEST_RECIPIENT_EMAIL: z.email(),
 });
 

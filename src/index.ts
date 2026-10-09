@@ -1,5 +1,8 @@
+import { HubSpotClient } from "./adapters/hubspot";
+import { runDiscovery } from "./discovery";
 import { type RuntimeConfigInput, validateRuntimeConfig } from "./platform/config";
 import { logEvent } from "./platform/logging";
+import { TicketRepository } from "./state/ticket-repository";
 
 export { TicketWorkflow } from "./workflows/ticket-workflow";
 
@@ -36,6 +39,26 @@ export default {
   async scheduled(_controller, env): Promise<void> {
     if (!validateRuntimeConfig(env)) {
       logEvent("cron.skipped_not_configured");
+      return;
+    }
+    try {
+      const report = await runDiscovery({
+        cutoff: env.DEMO_START_AT,
+        source: new HubSpotClient(env.HUBSPOT_SERVICE_KEY),
+        store: new TicketRepository(env.DB),
+        workflows: env.TICKET_WORKFLOW,
+      });
+      logEvent("cron.discovery_completed", {
+        found: report.found,
+        claimed: report.claimed,
+        duplicates: report.duplicates,
+        dailyLimit: report.dailyLimit,
+        workflowsStarted: report.workflowsStarted,
+        reconciled: report.reconciled,
+        deferred: report.deferred,
+      });
+    } catch {
+      logEvent("cron.discovery_failed");
     }
   },
 } satisfies ExportedHandler<Env>;
