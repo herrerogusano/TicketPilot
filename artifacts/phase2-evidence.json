@@ -1,0 +1,28 @@
+{
+  "phase": 2,
+  "evidence_kind": "LIVE_PROVIDER",
+  "observed_at_utc": "2026-10-09T01:00:35Z",
+  "deployment_version": "9827444f-6f71-40df-8e90-aa4f27c1b769",
+  "quality": {"typecheck": "PASS", "lint": "PASS", "tests": 50, "test_files": 8},
+  "notion": {"verified_policy_pages": 5, "repeat_seed_new_pages": 0},
+  "remote_migration": "0003_phase2_grounded_proposals.sql",
+  "health": {"ok": true, "configured": true},
+  "proposals": {
+    "total": 5,
+    "supported": 4,
+    "insufficient_evidence": 1,
+    "ai_reserved_calls": 4,
+    "supported_calls_per_ticket": 1,
+    "unknown_policy_ai_calls": 0,
+    "cited_keys": ["billing-double-charge", "premium-activation", "password-reset", "export-csv"]
+  },
+  "application_slack_messages": 0,
+  "application_emails": 0,
+  "human_approval": "NOT_RUN",
+  "inbox_application_delivery": "NOT_RUN",
+  "notes": [
+    "Only verified phase-1 safe-placeholder instances were restarted; restart used the new workflow version.",
+    "Counters and proposal presence were read from actual remote D1, not inferred from local fixtures.",
+    "No claim of general answer accuracy or measured one-ticket cron peak CPU."
+  ]
+}

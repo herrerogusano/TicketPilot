@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { HubSpotClient, type HubSpotTicketPipeline } from "../src/adapters/hubspot";
 
-const seedCases = [
+export const seedCases = [
   {
     key: "premium-activation",
     subject: "[TP-DEMO] Premium plan activation question",
@@ -194,5 +194,3 @@ if (import.meta.main) {
     process.exitCode = 1;
   });
 }
-
-export { seedCases };

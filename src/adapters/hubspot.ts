@@ -70,7 +70,7 @@ const apiRoot = "https://api.hubapi.com";
 const responseLimitBytes = 512 * 1024;
 const timeoutMs = 8_000;
 const maxReadAttempts = 3;
-const maxNoteAssociations = 49;
+const maxNoteAssociations = 10;
 
 export class HubSpotError extends Error {
   constructor(
@@ -86,7 +86,7 @@ export class HubSpotError extends Error {
 export class HubSpotClient {
   constructor(
     private readonly token: string,
-    private readonly fetcher: Fetcher = fetch,
+    private readonly fetcher: Fetcher = (input, init) => globalThis.fetch(input, init),
   ) {}
 
   async searchDemoTickets(cutoff: string): Promise<HubSpotTicket[]> {

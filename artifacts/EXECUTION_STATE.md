@@ -50,3 +50,29 @@ Status: implementation in progress, phase 1. PLAN.md and AGENTS.md remain author
 - Phase-1 instances finish a safe placeholder. Later supervisor may restart ONLY exact known seed instances after confirming phase1_started output and no side effects; never introduce general automatic restart or restart ambiguous-email states.
 - Ignored preflight-redacted.json was overwritten by an accidental old --help probe; corrected --help now exits without probes. Actual accepted phase-0 evidence is preserved in artifacts/phase0-evidence.json.
 - Scoped GitHub CD authorization remains pending; no Cloudflare token created, no deploy job verified. Continue independent implementation.
+
+## Subsequent integration checkpoint
+
+- Supervisor phase-1 gates passed: typecheck, lint, **22 tests**. Migration0002 applied remotely (8 commands). Five HubSpot seed tickets created/read back; repeated --apply verified all same IDs with no clones.
+- Phase-1 version `9084f17b-dcb6-44aa-be34-cb305d0dd4a9` deployed. Health200 configuredtrue; health-only observed CPU2ms/wall3ms. Do not claim processing CPU evidence from it.
+- Actual schedule API readback: `*/5 * * * *`, modified `00:29:12Z`; production execution not yet observed at 00:37Z. Official docs allow up to15min propagation. Redacted live tail session **16134** watches cron/CPU/outcome; it is NOT the keep-awake session.
+- Phase1 commit8668f61 reviewed via PR1, both GitHub CI checks passed; merged squash master88a9923. Subsequent master CI37865384237 passed; release37865384127 passed quality/deploy stillskipped.
+- Current shared branch **feat/grounded-proposals**. Implementer is doing bounded phase2 OFFLINE code/tests while supervisor monitors pending phase1 live gate; no AI/proposals/emails live yet. Main owns README/docs/artifacts, worker owns phase2src/tests/migration/seed.
+- Main authored initial English README, DEMO, OPERATIONS and truthful in-progress ACCEPTANCE; update their phase-specific observations before final handoff.
+- Cron actually ran at00:35/00:40, safely failed before D1 admission: redacted diagnostic stage2/source, hubspot_network_error, noHTTPstatus; local HubSpot search/read stillpasses. Last diagnostic CPU6ms/wall402ms. Supervisor isolated ignored `.wrangler/phase1-diagnostic-entry.ts`, with safe placeholder Workflow/noAI/noemail, leaving phase2 WIP untouched.
+- Suspected native-fetch receiver issue: main patched HubSpot default to `(input,init)=>globalThis.fetch(input,init)` and added passing default-receiver sentinel regression test. Diagnostic deploy2513722f uses lexical wrapper; **live correction not yet confirmed**. Await nextcron; no blind retries or paid changes.
+- Current redacted tail session16134 is separate from keep-awake session78877. Diagnostic deployment without secrets-file preserved all six secret names and health configuredtrue, verified actual readback; that matters for later CD.
+- **Phase1 live correction confirmed at00:45:32Z:** cron found5/claimed5/started5/deferred0; remote D1 five unique rows, attempts1 each, admission counter5. Checked billing deterministic Workflow complete, triggerbinding, outputphase1_started (noAI/email). CPU24ms/wall4320ms/outcomeok; do not claim allprocessingCPU<10ms. Next50cron will prove no duplicates.
+- Because24ms exceeded documented nominal Free10ms (infrequent burst flexibility explains outcomeok), main reduced future intake to **one per cron** (within maximumfive), keeping daily20 atomiccap. Targeted15tests passed. HubSpot note cap now10, bounding worst-case retry outbounds below50. These edits are local awaiting next reviewed deployment; don't claim a measured1-ticket productionCPU result yet.
+- **Phase1 exit complete:** actual repeatcron at00:50:32Z foundsame5/claimed0/started0. Remote D1 stillfiveunique tickets/workflowIDs, dailycount5, maxattempts1. Repeat CPU5ms/wall330ms/outcomeok. Allfive instances listcomplete, safeplaceholder only. Phase2 next: frozen handoff, allsupervisorqualitygates, seedNotion/readback+rerun, remote0003, deployreviewedrealentry, restartONLY knownplaceholder seedinstances afterverifyinglatestversionbehavior.
+
+## Phase 2 integration checkpoint
+
+- Wake helper PID113256 remains alive; release session78877 before any final response. No power-plan settings changed.
+- Supervisor typecheck/lint and all50 tests (8 files) passed. Five actual Notion policy pages created/read back; repeat --apply verified five and created zero. Remote migration0003 applied.
+- Reviewed phase2 version9827444f-6f71-40df-8e90-aa4f27c1b769 deployed with protected transient secrets file; exact file absence verified. Health200/configuredtrue. Production intake now capped at one per poll.
+- Billing seed436649189587 was safely restarted from verified phase1 placeholder. Actual new Workflow versiona4172ec3 completed real Notion retrieval and Workers AI; D1 SUPPORTED/billing-double-charge, AWAITING_APPROVAL, one reserved AI attempt and one immutable proposal. No Slack approval or email yet.
+- Other four exact instances were verified complete with phase1_started and only phase-1-safe-placeholder step before permitted restart. Never generalize this restart to ambiguous writes or accepted emails.
+- Reused implementation worker begins bounded Phase3 offline Slack/signatures/durable decisions/wait/reconciliation; root retains live deployment, config, documentation and Git ownership. No additional agents or dependencies.
+- Operational caveat discovered: describe --json emits full step output even with --no-step-output. Capture/parse JSON privately and emit only allowlisted metadata; do not print raw JSON in routine diagnostics.
+- All five actual seed workflows now persisted proposals: four SUPPORTED with their corresponding policy and one AI attempt each; unknown office-parking case NEEDS_MANUAL_REVIEW/INSUFFICIENT_EVIDENCE with zero AI attempts. Actual daily AI reservations4. Phase2 live exit passed; no Slack messages or application emails yet.

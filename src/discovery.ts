@@ -31,7 +31,8 @@ export type DiscoveryReport = {
   deferred: number;
 };
 
-const maxWorkflowStartsPerPoll = 5;
+// Below the contract's maximum of five: leave CPU headroom on Workers Free.
+const maxWorkflowStartsPerPoll = 1;
 
 export async function runDiscovery(input: {
   cutoff: string;
