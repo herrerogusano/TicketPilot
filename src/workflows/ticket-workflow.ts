@@ -428,8 +428,6 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
     if (
       current === null ||
       received.ticketId !== ticketId ||
-      received.proposalHash !== proposal.proposalHash ||
-      received.proposalRevision !== proposal.revision ||
       current.decision !== received.decision ||
       current.decision_by !== received.actorId ||
       received.actorId !== this.env.SLACK_APPROVER_USER_ID ||

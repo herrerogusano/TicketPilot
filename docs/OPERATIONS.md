@@ -2,6 +2,12 @@
 
 ## Customer email presentation
 
+### Revision safety
+
+Only supported, undecided, unexpired Slack reviews may be edited. Saving an edit advances the proposal revision/hash atomically and preserves append-only history; it does not approve. Approval must match the exact current version. Concurrent edit/approve requests have at most one valid winner, and no edit may replace an already approved or reserved payload. Stale modal submissions and old buttons cannot send or overwrite anything. A failed Slack card refresh must not enable approval of the superseded version; inspect the durable refresh state and normal reconciliation before intervening. Never reset decision or payload identity to make editing available again.
+
+The internal HubSpot audit records revision provenance and the actual sent text; it is not the outgoing message. Do not copy raw audit bodies, drafts or recipient details into logs/evidence. Rejected/expired revisions remain in D1 and do not acquire a fake provider acceptance or delivery claim.
+
 New payload reservations use the sanitized stored ticket title as the subject reason and exactly the approved draft as the plain-text body. Classification, priority, summary and evidence remain internal. No migration or historical rewrite is needed. A safely retriable legacy reservation keeps its exact saved JSON/hash and legacy subject; completed or ambiguous sends must never be resent to update their appearance.
 
 This is a synthetic demonstration, not a customer-mail service. Never change a recipient from ticket text, increase permissions to hide an authentication error, or enable paid billing to make a test pass.

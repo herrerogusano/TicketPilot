@@ -5,7 +5,7 @@ import type { StoredProposal } from "../src/domain/contracts";
 import { runScheduledTasks } from "../src/index";
 import { EmailDeliveryRepository, maskRecipient } from "../src/state/email-delivery";
 
-const ticketId = "9850";
+let ticketId = String(9_850_000_000_000 + (Date.now() % 100_000_000));
 const recipient = "ticketpilot-owner@example.test";
 const team = "T0C7S09984V";
 const channel = "C0C7X4Y182E";
@@ -33,6 +33,7 @@ const proposal: StoredProposal = {
 
 describe("Phase 4 scheduled audit recovery", () => {
   beforeEach(async () => {
+    ticketId = String(Number(ticketId) + 1_000);
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     await env.DB.prepare("DELETE FROM events WHERE ticket_id = ?").bind(ticketId).run();
     await env.DB.prepare("DELETE FROM tickets WHERE hubspot_ticket_id = ?").bind(ticketId).run();

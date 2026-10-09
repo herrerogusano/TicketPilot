@@ -16,7 +16,11 @@ import {
   maskRecipient,
   type PayloadIdentity,
 } from "../state/email-delivery";
-import type { SlackReviewState } from "../state/ticket-repository";
+import {
+  type ProposalRevisionAudit,
+  type SlackReviewState,
+  TicketRepository,
+} from "../state/ticket-repository";
 
 const noRetryStep = {
   retries: { limit: 0, delay: 1_000, backoff: "constant" as const },
@@ -24,6 +28,8 @@ const noRetryStep = {
 };
 const MAX_SEND_WINDOW_MS = 10 * 60 * 1_000;
 const RESEND_IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1_000;
+const HUBSPOT_NOTE_MAX_CHARS = 65_536;
+const AUDIT_NOTE_SEND_BUDGET = 60_000;
 
 export type DeliveryResult = {
   status:
@@ -46,6 +52,20 @@ export async function handleDurableDecision(
   proposal: StoredProposal,
   approval: SlackReviewState,
 ): Promise<DeliveryResult> {
+  const effectiveProposal = await step.do<StoredProposal | null>(
+    "phase4-reload-effective-approved-proposal",
+    noRetryStep,
+    () => new TicketRepository(env.DB).getProposal(ticketId),
+  );
+  if (
+    effectiveProposal === null ||
+    effectiveProposal.proposalHash !== approval.proposal_hash ||
+    effectiveProposal.revision !== approval.proposal_revision ||
+    (effectiveProposal.proposalHash !== proposal.proposalHash &&
+      proposal.revision === approval.proposal_revision)
+  )
+    return { status: "manual_review" };
+  proposal = effectiveProposal;
   const result: DeliveryResult = {
     status: "decision_received",
     decision: approval.decision ?? undefined,
@@ -79,6 +99,12 @@ export async function handleDurableDecision(
       idempotencyKey: `ticketpilot/${ticketId}/v1`,
       recipientAlias: maskRecipient(env.TEST_RECIPIENT_EMAIL),
     };
+    const history = await step.do<ProposalRevisionAudit[]>(
+      "phase4-load-proposal-audit-history",
+      noRetryStep,
+      () => new TicketRepository(env.DB).getProposalRevisionHistory(ticketId),
+    );
+    if (!isAuditHistoryWithinBudget(history, proposal, payload)) return { status: "manual_review" };
     const reserved = await step.do("phase4-reserve-email-send", noRetryStep, () =>
       repository.reserveApprovedEmail(
         ticketId,
@@ -426,7 +452,8 @@ async function reconcileCrmAuditOnce(
 
   let noteBody: string;
   try {
-    noteBody = buildAuditNote(current, env.TEST_RECIPIENT_EMAIL);
+    const history = await new TicketRepository(env.DB).getProposalRevisionHistory(ticketId);
+    noteBody = buildAuditNote(current, env.TEST_RECIPIENT_EMAIL, history);
   } catch {
     await repository.markCrmAuditUnknown(ticketId);
     return { status: "pending" };
@@ -533,7 +560,11 @@ function isRetryableHubSpotWriteFailure(error: unknown): boolean {
   return error.status === 429;
 }
 
-export function buildAuditNote(row: EmailDeliveryRow, recipient: string): string {
+export function buildAuditNote(
+  row: EmailDeliveryRow,
+  recipient: string,
+  history: readonly ProposalRevisionAudit[],
+): string {
   if (
     row.crm_audit_marker === null ||
     row.hubspot_ticket_id === "" ||
@@ -548,10 +579,14 @@ export function buildAuditNote(row: EmailDeliveryRow, recipient: string): string
   if (payload === null || payload.to[0] !== recipient) throw new Error("audit_payload_invalid");
   const marker = auditMarker(row.hubspot_ticket_id, row.approved_payload_hash ?? "");
   if (marker !== row.crm_audit_marker) throw new Error("audit_marker_mismatch");
+  if (!isValidRevisionHistory(history, row.proposal_hash ?? "", row.proposal_revision))
+    throw new Error("audit_history_invalid_or_too_large");
   const details = [
     row.crm_audit_marker,
     "TicketPilot demo outbound audit (provider acceptance; not inbox delivery).",
-    `Created at: ${row.decision_at ?? "unknown"}`,
+    `Approved at: ${row.decision_at ?? "unknown"}`,
+    `Approved/sent revision: ${row.proposal_revision}`,
+    `Approved proposal SHA-256: ${row.proposal_hash ?? "unavailable"}`,
     `Category: ${row.category ?? "unknown"}`,
     `Priority: ${row.priority ?? "unknown"}`,
     `Policy keys: ${safePolicyKeys(row.policy_keys_json)}`,
@@ -560,9 +595,120 @@ export function buildAuditNote(row: EmailDeliveryRow, recipient: string): string
     `Resend message ID: ${row.resend_message_id}`,
     `Email subject: ${payload.subject}`,
     `Approved payload SHA-256: ${row.approved_payload_hash}`,
-    `Proposal summary: ${(row.proposal_summary ?? "").slice(0, 240)}`,
+    "Proposal revision history:",
+    ...renderProposalHistory(history),
+    "Exact sent text:",
+    payload.text,
   ];
-  return details.join("\n").slice(0, 2_000);
+  const note = `<pre>${escapeHtml(details.join("\n\n"))}</pre>`;
+  if (note.length > HUBSPOT_NOTE_MAX_CHARS) throw new Error("audit_note_exceeds_hubspot_limit");
+  return note;
+}
+
+export function isAuditHistoryWithinBudget(
+  history: readonly ProposalRevisionAudit[],
+  finalProposal: StoredProposal,
+  payload: { subject: string; text: string },
+): boolean {
+  if (!isValidRevisionHistory(history, finalProposal.proposalHash, finalProposal.revision))
+    return false;
+  let prior: Record<string, unknown> | null = null;
+  const finalHistoryRow = history[history.length - 1];
+  try {
+    prior =
+      finalHistoryRow === undefined
+        ? null
+        : (JSON.parse(finalHistoryRow.proposal_json) as Record<string, unknown>);
+  } catch {
+    return false;
+  }
+  if (
+    prior === null ||
+    prior.proposalHash !== finalProposal.proposalHash ||
+    prior.revision !== finalProposal.revision ||
+    prior.draft_reply !== finalProposal.draft_reply ||
+    prior.summary !== finalProposal.summary ||
+    payload.text !== finalProposal.draft_reply
+  )
+    return false;
+  const estimate =
+    renderProposalHistory(history).map(escapeHtml).join("<br>").length +
+    escapeHtml(payload.text).length +
+    escapeHtml(payload.subject).length +
+    5_000;
+  return estimate <= AUDIT_NOTE_SEND_BUDGET;
+}
+
+function isValidRevisionHistory(
+  history: readonly ProposalRevisionAudit[],
+  proposalHash: string,
+  revision: number,
+): boolean {
+  if (history.length < 1 || history.length > 4 || revision !== history.length) return false;
+  for (let index = 0; index < history.length; index += 1) {
+    const row = history[index];
+    if (
+      row === undefined ||
+      row.revision !== index + 1 ||
+      !/^[a-f0-9]{64}$/.test(row.proposal_hash)
+    )
+      return false;
+    let snapshot: unknown;
+    try {
+      snapshot = JSON.parse(row.proposal_json) as unknown;
+    } catch {
+      return false;
+    }
+    if (typeof snapshot !== "object" || snapshot === null || Array.isArray(snapshot)) return false;
+    const item = snapshot as Record<string, unknown>;
+    if (
+      item.proposalHash !== row.proposal_hash ||
+      item.revision !== row.revision ||
+      typeof item.draft_reply !== "string" ||
+      item.draft_reply.length < 1 ||
+      item.draft_reply.length > 1_500 ||
+      typeof item.summary !== "string" ||
+      item.summary.length < 1 ||
+      item.summary.length > 240
+    )
+      return false;
+    if (row.revision === 1 && (row.edit_reason !== null || row.edited_by !== null)) return false;
+    if (
+      row.revision > 1 &&
+      (row.edit_reason === null ||
+        row.edit_reason.length < 1 ||
+        row.edit_reason.length > 200 ||
+        row.edited_by === null)
+    )
+      return false;
+  }
+  const last = history.at(-1);
+  return last?.proposal_hash === proposalHash;
+}
+
+function renderProposalHistory(history: readonly ProposalRevisionAudit[]): string[] {
+  return history.map((row) => {
+    const proposal = JSON.parse(row.proposal_json) as Record<string, unknown>;
+    return [
+      `Revision ${row.revision} SHA-256: ${row.proposal_hash}`,
+      `Created at: ${row.created_at}`,
+      `Editor: ${row.edited_by ?? "Workers AI"}`,
+      ...(row.edit_reason === null
+        ? []
+        : [`Internal reason / solution change: ${row.edit_reason}`]),
+      `Internal summary: ${String(proposal.summary ?? "")}`,
+      `Response text: ${String(proposal.draft_reply ?? "")}`,
+    ].join("\n");
+  });
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 function safePolicyKeys(value: string | null): string {

@@ -90,6 +90,7 @@ Cloudflare Workflow
 - Backend checks evidence status, citations, length, JSON/schema. Any invalid/unsupported citation -> `NEEDS_MANUAL_REVIEW`; Slack may show warning but **no Approve option** until there is a supported draft. No auto-email path under any circumstance.
 
 ### Slack review
+- Owner-authorized extension (2026-10-09): a supported pending proposal offers Edit response via signed Slack modal. Saving a new nonblank bounded reply (and internal change reason/summary) creates an immutable audited revision, not an approval. Revisions are bound to actor/time/hash and preserve the original AI output; only the current revision can be approved. Atomic edit-versus-decision guards prevent stale approvals/submissions and all edits after a durable decision/send reservation. No new AI call, recipient override or unsupported-evidence promotion. Slack displays the refreshed revision for explicit approval. Final HubSpot audit links the original/edit history to the exact approved/sent version and text; D1 retains durable history independent of event retention. Duplicate callbacks and failed UI refresh cannot send older text. Completed/ambiguous operations are never reopened.
 - Single channel ID; single `SLACK_APPROVER_USER_ID` allowlist (more users are out of scope); bot scope only `chat:write` and any additional scope demonstrably needed during setup. Use **HTTP interactivity**, not Socket Mode. Request URL: `https://<worker>.<subdomain>.workers.dev/slack/actions`.
 - Verify `X-Slack-Signature` (`v0` HMAC-SHA256 on raw body) using the signing secret and `X-Slack-Request-Timestamp` age <= 5 minutes, using constant-time comparison; reject malformed, unauthorized, missing, replayed and duplicate decisions.
 - Body may be `application/x-www-form-urlencoded` with a `payload` JSON field. Verify before parsing. Check team, channel, user, ticket ID, proposal ID and decision revision against server-side persisted values. Do not trust user-supplied proposal text.
@@ -312,6 +313,8 @@ At least 80% meaningful domain/adapter branch coverage where feasible; prioritiz
 - HubSpot CRM search: https://developers.hubspot.com/docs/api-reference/legacy/crm/objects/objects/search/search-objects
 - Notion integrations: https://www.notion.com/help/create-integrations-with-the-notion-api
 - Slack interactive endpoint: https://docs.slack.dev/interactivity/handling-user-interaction/
+- Slack edit modals and signed submissions: https://docs.slack.dev/surfaces/modals/ and https://docs.slack.dev/reference/methods/views.open/
+- D1 transactional batches for revision/decision CAS: https://developers.cloudflare.com/d1/worker-api/d1-database/#batch
 - Slack signature: https://api.slack.com/docs/verifying-requests-from-slack
 - Resend with Cloudflare: https://resend.com/cloudflare
 - Resend idempotency: https://resend.com/changelog/idempotency-keys

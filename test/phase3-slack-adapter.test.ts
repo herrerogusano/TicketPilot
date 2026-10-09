@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildReviewMessage,
   parseSlackAction,
+  parseSlackEditSubmission,
   readSlackRawBody,
   SLACK_ACTION_IDS,
+  SLACK_EDIT_MODAL_CALLBACK_ID,
   type SlackApiError,
   SlackClient,
   verifySlackSignature,
@@ -163,6 +165,41 @@ describe("Phase 3 Slack signature and interaction adapter", () => {
     expect(parseSlackAction(formBody(invalidValue))).toBeNull();
   });
 
+  it("parses signed modal metadata and treats a null optional summary as unchanged", () => {
+    const modal = {
+      type: "view_submission",
+      team: { id: "T0C7S09984V" },
+      user: { id: "U0C7X45H86N" },
+      view: {
+        callback_id: SLACK_EDIT_MODAL_CALLBACK_ID,
+        private_metadata: JSON.stringify({
+          ticket_id: "7001",
+          proposal_hash: supportedProposal.proposalHash,
+          proposal_revision: 1,
+          team_id: "T0C7S09984V",
+          channel_id: "C0C7X4Y182E",
+          message_ts: "1791547200.000001",
+        }),
+        state: {
+          values: {
+            draft_reply_block: { draft_reply: { value: "Revised response" } },
+            summary_block: { summary: { value: null } },
+            reason_block: { reason: { value: "Clarified the proposed solution." } },
+          },
+        },
+      },
+    };
+    expect(parseSlackEditSubmission(formBody(modal))).toMatchObject({
+      ticketId: "7001",
+      proposalHash: supportedProposal.proposalHash,
+      proposalRevision: 1,
+      draftReply: "Revised response",
+      summary: "",
+      reason: "Clarified the proposed solution.",
+    });
+    expect(parseSlackEditSubmission(`${formBody(modal)}&payload=%7B%7D`)).toBeNull();
+  });
+
   it("builds a Block Kit review with deterministic target identity and never shows Approve without evidence", () => {
     const message = buildReviewMessage({ ticketId: "7001", proposal: supportedProposal, evidence });
     expect(message.text).toContain("7001");
@@ -174,6 +211,16 @@ describe("Phase 3 Slack signature and interaction adapter", () => {
     );
     expect(JSON.stringify(elements)).toContain(supportedProposal.proposalHash);
     expect(JSON.stringify(elements)).toContain("real demo email to the fixed owner recipient");
+    expect(JSON.stringify(elements)).toContain(SLACK_ACTION_IDS.edit);
+
+    const atLimit = buildReviewMessage({
+      ticketId: "7001",
+      proposal: { ...supportedProposal, revision: 4 },
+      evidence,
+    });
+    const atLimitActions = atLimit.blocks.find((block) => block.type === "actions");
+    expect(JSON.stringify(atLimitActions)).not.toContain(SLACK_ACTION_IDS.edit);
+    expect(JSON.stringify(atLimit.blocks)).toContain("edit limit has been reached");
 
     const unsupported: StoredProposal = {
       ...supportedProposal,

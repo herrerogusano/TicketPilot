@@ -6,8 +6,8 @@ import { TICKET_DECISION_EVENT_TYPE } from "../src/state/decision-events";
 import { TicketRepository } from "../src/state/ticket-repository";
 import { TicketWorkflow, type TicketWorkflowParams } from "../src/workflows/ticket-workflow";
 
-const firstId = 7_500;
-const lastId = 7_599;
+let firstId = 7_500_000_000_000 + (Date.now() % 100_000_000);
+let lastId = firstId + 99;
 const baseDate = new Date();
 const channel = "C0C7X4Y182E";
 const team = "T0C7S09984V";
@@ -107,6 +107,8 @@ async function startWorkflow(id: number, label: string, eventPayload?: unknown) 
 
 describe("Phase 3 TicketWorkflow runtime", () => {
   beforeEach(async () => {
+    firstId += 1_000;
+    lastId = firstId + 99;
     Object.defineProperty(env, "TEST_RECIPIENT_EMAIL", {
       value: "ticketpilot-owner@example.test",
       configurable: true,
@@ -151,7 +153,9 @@ describe("Phase 3 TicketWorkflow runtime", () => {
       expect(posts[0]?.channel).toBe(channel);
       const blocks = posts[0]?.blocks as Array<{ elements?: Array<{ action_id?: string }> }>;
       expect(JSON.stringify(blocks)).toContain("ticketpilot_approve");
-      expect(JSON.stringify(blocks)).toContain("This authorizes sending a real demo email");
+      expect(JSON.stringify(blocks)).toContain(
+        "This authorizes sending revision 1 as a real demo email",
+      );
     } finally {
       await inspector.dispose();
     }

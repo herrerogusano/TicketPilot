@@ -4,7 +4,7 @@ import type { TicketProposal } from "../src/domain/contracts";
 import { runScheduledTasks } from "../src/index";
 import { TicketRepository } from "../src/state/ticket-repository";
 
-const ticketId = "7650";
+let ticketId = String(7_650_000_000_000 + (Date.now() % 100_000_000));
 const at = new Date("2026-10-09T01:00:00.000Z");
 const evidence = [
   {
@@ -26,6 +26,7 @@ const proposal: TicketProposal = {
 
 describe("Phase 3 scheduled outbox reconciliation", () => {
   beforeEach(async () => {
+    ticketId = String(Number(ticketId) + 1_000);
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     await env.DB.prepare("DELETE FROM events WHERE ticket_id = ?").bind(ticketId).run();
     await env.DB.prepare("DELETE FROM tickets WHERE hubspot_ticket_id = ?").bind(ticketId).run();

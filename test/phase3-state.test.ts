@@ -11,8 +11,8 @@ import {
 } from "../src/state/decision-events";
 import { TicketRepository } from "../src/state/ticket-repository";
 
-const firstId = 7_100;
-const lastId = 7_199;
+let firstId = 7_100_000_000_000 + (Date.now() % 100_000_000);
+let lastId = firstId + 99;
 const evidence: PolicyEvidence[] = [
   {
     key: "billing-double-charge",
@@ -63,6 +63,36 @@ async function postReview(repository: TicketRepository, id: number): Promise<voi
   ).toBe(true);
 }
 
+function editedProposal(draft: string, summary = supported.summary): TicketProposal {
+  return { ...supported, draft_reply: draft, summary };
+}
+
+async function editOnce(repository: TicketRepository, id: number, revision: number, draft: string) {
+  const current = await repository.getProposal(String(id));
+  if (current === null) throw new Error("test proposal missing");
+  const edited = await repository.editProposal({
+    ticketId: String(id),
+    expectedHash: current.proposalHash,
+    expectedRevision: revision,
+    proposal: editedProposal(draft),
+    proposalHash: String(id + revision)
+      .padStart(64, "0")
+      .slice(-64),
+    reason: `Clarified solution in revision ${revision + 1}`,
+    editorId: "U0C7X45H86N",
+    teamId: "T0C7S09984V",
+    channelId: "C0C7X4Y182E",
+    messageTs: "1791547200.000001",
+    now,
+  });
+  if (edited) {
+    const token = `test-refresh-${revision + 1}`;
+    expect(await repository.reserveSlackRefresh(String(id), revision + 1, token)).toBe(true);
+    expect(await repository.completeSlackRefresh(String(id), revision + 1, token)).toBe(true);
+  }
+  return edited;
+}
+
 function decisionInput(
   id: number,
   decision: "APPROVE" | "REJECT",
@@ -85,6 +115,8 @@ function decisionInput(
 
 describe("Phase 3 D1 Slack publication and first-wins decisions", () => {
   beforeEach(async () => {
+    firstId += 1_000;
+    lastId = firstId + 99;
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     await env.DB.prepare("DELETE FROM events WHERE ticket_id BETWEEN ? AND ?")
       .bind(String(firstId), String(lastId))
@@ -206,7 +238,137 @@ describe("Phase 3 D1 Slack publication and first-wins decisions", () => {
     ).rejects.toThrow("approval requires supported grounded proposal");
   });
 
+  it("keeps revision audit append-only, caps human edits, and denies policy-field mutation", async () => {
+    const repository = await setupTicket(firstId);
+    await postReview(repository, firstId);
+    expect(await editOnce(repository, firstId, 1, "Human revision two response.")).toBe(true);
+    const revision = await env.DB.prepare(
+      "SELECT proposal_json FROM proposal_revisions WHERE ticket_id = ? AND revision = 2",
+    )
+      .bind(String(firstId))
+      .first<{ proposal_json: string }>();
+    expect(revision?.proposal_json).toContain("Human revision two response.");
+    await expect(
+      env.DB.prepare(
+        "UPDATE proposal_revisions SET edit_reason = 'rewritten' WHERE ticket_id = ? AND revision = 2",
+      )
+        .bind(String(firstId))
+        .run(),
+    ).rejects.toThrow("append-only");
+    await expect(
+      env.DB.prepare("DELETE FROM proposal_revisions WHERE ticket_id = ? AND revision = 2")
+        .bind(String(firstId))
+        .run(),
+    ).rejects.toThrow("append-only");
+    await expect(
+      env.DB.prepare("UPDATE tickets SET category = 'OTHER' WHERE hubspot_ticket_id = ?")
+        .bind(String(firstId))
+        .run(),
+    ).rejects.toThrow("proposal is immutable outside pending human revisions");
+    await expect(
+      env.DB.prepare(
+        "UPDATE tickets SET evidence_status = 'INSUFFICIENT_EVIDENCE' WHERE hubspot_ticket_id = ?",
+      )
+        .bind(String(firstId))
+        .run(),
+    ).rejects.toThrow("proposal is immutable outside pending human revisions");
+
+    expect(await editOnce(repository, firstId, 2, "Human revision three response.")).toBe(true);
+    expect(await editOnce(repository, firstId, 3, "Human revision four response.")).toBe(true);
+    expect(await editOnce(repository, firstId, 4, "Revision five must not be accepted.")).toBe(
+      false,
+    );
+    expect(
+      (await repository.getProposalRevisionHistory(String(firstId))).map((item) => item.revision),
+    ).toEqual([1, 2, 3, 4]);
+  });
+
+  it("rejects human revision CAS after expiry and denies any proposal mutation after approval", async () => {
+    const repository = await setupTicket(firstId);
+    await postReview(repository, firstId);
+    const late = new Date(now.getTime() + 48 * 60 * 60 * 1_000 + 1);
+    const current = await repository.getProposal(String(firstId));
+    expect(current).not.toBeNull();
+    if (current !== null) {
+      expect(
+        await repository.editProposal({
+          ticketId: String(firstId),
+          expectedHash: current.proposalHash,
+          expectedRevision: 1,
+          proposal: editedProposal("Expired edits cannot win."),
+          proposalHash: "b".repeat(64),
+          reason: "Late edit",
+          editorId: "U0C7X45H86N",
+          teamId: "T0C7S09984V",
+          channelId: "C0C7X4Y182E",
+          messageTs: "1791547200.000001",
+          now: late,
+        }),
+      ).toBe(false);
+    }
+    expect(await repository.recordSlackDecision(decisionInput(firstId, "APPROVE"))).toBe(true);
+    await expect(
+      env.DB.prepare(
+        "UPDATE tickets SET draft_reply = 'after approval' WHERE hubspot_ticket_id = ?",
+      )
+        .bind(String(firstId))
+        .run(),
+    ).rejects.toThrow("proposal is immutable outside pending human revisions");
+    expect(
+      (await repository.getProposalRevisionHistory(String(firstId))).map((item) => item.revision),
+    ).toEqual([1]);
+  });
+
+  it("skips an expired pending Slack refresh instead of starving a live revision", async () => {
+    const expiredId = firstId;
+    const liveId = firstId + 1;
+    const expiredRepository = await setupTicket(expiredId);
+    const liveRepository = await setupTicket(liveId);
+    await postReview(expiredRepository, expiredId);
+    await postReview(liveRepository, liveId);
+    for (const [repository, id] of [
+      [expiredRepository, expiredId],
+      [liveRepository, liveId],
+    ] as const) {
+      const current = await repository.getProposal(String(id));
+      expect(current).not.toBeNull();
+      if (current === null) continue;
+      expect(
+        await repository.editProposal({
+          ticketId: String(id),
+          expectedHash: current.proposalHash,
+          expectedRevision: 1,
+          proposal: editedProposal(`Pending refresh for ${id}.`),
+          proposalHash: String(id + 10)
+            .padStart(64, "0")
+            .slice(-64),
+          reason: "Corrected the response before approval.",
+          editorId: "U0C7X45H86N",
+          teamId: "T0C7S09984V",
+          channelId: "C0C7X4Y182E",
+          messageTs: "1791547200.000001",
+          now,
+        }),
+      ).toBe(true);
+    }
+    await env.DB.prepare(
+      "UPDATE tickets SET slack_review_deadline = ?, updated_at = ? WHERE hubspot_ticket_id = ?",
+    )
+      .bind(new Date(now.getTime() - 1).toISOString(), now.toISOString(), String(expiredId))
+      .run();
+    const pending = await liveRepository.listPendingSlackRefresh();
+    expect(pending.map((item) => item.hubspot_ticket_id)).toEqual([String(liveId)]);
+  });
+
   it("reconciles event-send failure without losing the decision, then marks delivered on retry", async () => {
+    // Earlier test-process runs leave synthetic outbox rows in the persistent D1 fixture.
+    // Exhaust those older demo rows so this queue test exercises only its own ticket.
+    await env.DB.prepare(`UPDATE tickets SET decision_event_delivery_attempts = 3
+      WHERE decision_event_pending = 1 AND workflow_instance_id LIKE 'ticketpilot-test-%'
+        AND CAST(hubspot_ticket_id AS INTEGER) BETWEEN 7100000000000 AND 7100100100000
+        AND CAST(hubspot_ticket_id AS INTEGER) < ?`)
+      .bind(firstId)
+      .run();
     const repository = await setupTicket(firstId);
     await postReview(repository, firstId);
     expect(await repository.recordSlackDecision(decisionInput(firstId, "APPROVE"))).toBe(true);

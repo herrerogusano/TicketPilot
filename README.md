@@ -16,6 +16,8 @@ Only tickets beginning with literal `[TP-DEMO]` and created after the configured
 
 Outgoing email keeps the ticket reason in its subject (the sanitized original ticket title, without its intake tag). Its plain-text body is exactly the approved draft reply. Category, priority, summary and policy metadata remain internal to Slack review and the CRM audit; they are not appended to the email. The mandatory demo marker and ticket ID remain in the subject.
 
+Supported pending proposals can be edited in a signed Slack modal. Saving creates a new audited revision, not an approval: review the refreshed card and explicitly approve that version. Old buttons and stale forms cannot approve or overwrite a newer revision. Editing is unavailable after a decision or send reservation, and cannot make an unsupported proposal sendable. Original and human-edited versions remain in D1; the final HubSpot audit identifies the approved/sent revision and text. See [the demo](docs/DEMO.md) for the manual edit scenario and evidence limits.
+
 ## Stack and scope
 
 - One TypeScript Cloudflare Worker: native Fetch API, Workflows, D1 and Workers AI.
@@ -29,7 +31,7 @@ The complete implementation and acceptance contract is in [PLAN.md](PLAN.md). Op
 
 The demo Worker [health endpoint](https://ticketpilot-api.herrerogusano-ticketpilot.workers.dev/health) and complete technical process are deployed. Five real synthetic tickets and Notion policies were verified. Live signed-simulator scenarios produced one accepted Resend email plus one directly verified associated HubSpot note, a rejection with zero sends, and an insufficient-evidence manual case. Duplicate callbacks did not duplicate side effects.
 
-The owner subsequently approved Premium in Slack, rejected password reset and confirmed the particular Premium email arrived. Both associated notes were directly verified; rejected and manual cases sent nothing. A further owner-approved manual ticket also completed with one send/associated note and confirmed inbox arrival. Supervisor checks now pass 126 tests, with 86.73% domain/adapter branch coverage including customer-email presentation and legacy payload compatibility. Actual GitHub CD run37874057267 (attempt2) migrated, deployed and verified health successfully; subsequent releases are recorded in Actions. See [acceptance evidence](artifacts/ACCEPTANCE.md) for evidence provenance and limitations.
+The owner subsequently approved Premium in Slack, rejected password reset and confirmed the particular Premium email arrived. Both associated notes were directly verified; rejected and manual cases sent nothing. A further owner-approved manual ticket also completed with one send/associated note and confirmed inbox arrival. Supervisor checks now pass 149 tests across 21 files, with 85.50% domain/adapter branch coverage including response revisions, customer-email presentation and legacy payload compatibility. The new Slack editing scenario still requires its own human modal/approval/inbox confirmation; earlier acceptance cannot substitute for that gate. Actual GitHub CD run37874057267 (attempt2) migrated, deployed and verified health successfully; subsequent releases are recorded in Actions. See [acceptance evidence](artifacts/ACCEPTANCE.md) for evidence provenance and limitations.
 
 ## Local development
 
@@ -59,6 +61,7 @@ npm run test:coverage
 npm run smoke
 npm run security:audit
 npm run verify:e2e
+npm run verify:edit -- --ticket <synthetic-ticket-id>
 ```
 
 `test:integration` selects real local Workers/D1/Workflow tests with controlled external providers; it is not a live-provider test. Coverage uses Istanbul, compatible with the Workers test runtime. `smoke` performs real read-only health, HubSpot eligibility, Notion page and D1 checks, plus an unsigned action rejection; it creates no inference, Slack post or email. `security:audit` compares tracked and unignored project files against configured secrets/recipient in memory, without printing them; it is not a guarantee about unknown historical credentials.

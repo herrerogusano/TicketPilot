@@ -34,6 +34,15 @@ export type Phase2Ticket = {
 };
 
 export type SlackDecision = "APPROVE" | "REJECT";
+export type ProposalRevisionAudit = {
+  ticket_id: string;
+  revision: number;
+  proposal_hash: string;
+  proposal_json: string;
+  edit_reason: string | null;
+  edited_by: string | null;
+  created_at: string;
+};
 
 export type PendingDecisionEvent = {
   hubspot_ticket_id: string;
@@ -65,6 +74,9 @@ export type SlackReviewState = {
   decision_at: string | null;
   decision_event_pending: number;
   decision_event_delivery_attempts: number;
+  slack_refresh_revision: number | null;
+  slack_refresh_token: string | null;
+  slack_refresh_locked_until: string | null;
 };
 
 export class TicketRepository {
@@ -77,7 +89,8 @@ export class TicketRepository {
           slack_review_started_at, slack_review_deadline, slack_post_status,
           slack_post_started_at, decision,
           decision_by, decision_at, decision_event_pending,
-          decision_event_delivery_attempts
+          decision_event_delivery_attempts, slack_refresh_revision,
+          slack_refresh_token, slack_refresh_locked_until
         FROM tickets WHERE hubspot_ticket_id = ?`)
       .bind(ticketId)
       .first<SlackReviewState>();
@@ -212,6 +225,7 @@ export class TicketRepository {
           WHERE hubspot_ticket_id = ? AND proposal_hash = ? AND proposal_revision = ?
             AND slack_team_id = ? AND slack_channel = ? AND slack_message_ts = ?
             AND slack_post_status = 'POSTED' AND decision IS NULL
+            AND slack_refresh_revision IS NULL
             AND slack_review_deadline IS NOT NULL AND slack_review_deadline > ?
             AND ((? = 'APPROVE' AND state = 'AWAITING_APPROVAL'
                   AND evidence_status = 'SUPPORTED' AND length(trim(draft_reply)) > 0
@@ -253,6 +267,192 @@ export class TicketRepository {
     ];
     const results = await this.db.batch(statements);
     return (results[0]?.meta.changes ?? 0) === 1;
+  }
+
+  async editProposal(input: {
+    ticketId: string;
+    expectedHash: string;
+    expectedRevision: number;
+    proposal: TicketProposal;
+    proposalHash: string;
+    reason: string;
+    editorId: string;
+    teamId: string;
+    channelId: string;
+    messageTs: string;
+    now?: Date;
+  }): Promise<boolean> {
+    if (
+      input.proposal.evidence_status !== "SUPPORTED" ||
+      input.proposal.draft_reply.trim().length === 0 ||
+      input.reason.trim().length === 0 ||
+      input.reason.length > 200 ||
+      !/^[a-f0-9]{64}$/.test(input.proposalHash) ||
+      input.expectedRevision >= 4
+    ) {
+      return false;
+    }
+    const at = (input.now ?? new Date()).toISOString();
+    const nextRevision = input.expectedRevision + 1;
+    const current = await this.getProposal(input.ticketId);
+    if (
+      current === null ||
+      current.proposalHash !== input.expectedHash ||
+      current.revision !== input.expectedRevision ||
+      current.evidence_status !== "SUPPORTED" ||
+      input.proposal.category !== current.category ||
+      input.proposal.priority !== current.priority ||
+      input.proposal.evidence_status !== current.evidence_status ||
+      JSON.stringify(input.proposal.cited_policy_keys) !==
+        JSON.stringify(current.cited_policy_keys) ||
+      input.proposal.rationale !== current.rationale
+    ) {
+      return false;
+    }
+    const snapshot: StoredProposal = {
+      ...input.proposal,
+      proposalHash: input.proposalHash,
+      revision: nextRevision,
+      promptVersion: current.promptVersion,
+      policyEvidence: current.policyEvidence,
+    };
+    const history = await this.getProposalRevisionHistory(input.ticketId);
+    const projectedHistory: ProposalRevisionAudit[] = [
+      ...history,
+      {
+        ticket_id: input.ticketId,
+        revision: nextRevision,
+        proposal_hash: input.proposalHash,
+        proposal_json: JSON.stringify(snapshot),
+        edit_reason: input.reason.trim(),
+        edited_by: input.editorId,
+        created_at: at,
+      },
+    ];
+    if (!revisionAuditFitsHubSpot(projectedHistory, input.proposal.draft_reply)) return false;
+    try {
+      const results = await this.db.batch([
+        this.db
+          .prepare(`INSERT INTO proposal_revisions (
+          ticket_id, revision, proposal_hash, proposal_json, edit_reason, edited_by, created_at
+        ) SELECT ?, ?, ?, ?, ?, ?, ?
+        WHERE EXISTS (SELECT 1 FROM tickets WHERE hubspot_ticket_id = ?
+          AND proposal_hash = ? AND proposal_revision = ? AND state = 'AWAITING_APPROVAL'
+          AND decision IS NULL AND approved_payload_hash IS NULL
+          AND slack_team_id = ? AND slack_channel = ? AND slack_message_ts = ?
+          AND slack_post_status = 'POSTED' AND slack_refresh_revision IS NULL
+          AND evidence_status = 'SUPPORTED' AND slack_review_deadline > ?)`)
+          .bind(
+            input.ticketId,
+            nextRevision,
+            input.proposalHash,
+            JSON.stringify(snapshot),
+            input.reason.trim(),
+            input.editorId,
+            at,
+            input.ticketId,
+            input.expectedHash,
+            input.expectedRevision,
+            input.teamId,
+            input.channelId,
+            input.messageTs,
+            at,
+          ),
+        this.db
+          .prepare(`UPDATE tickets SET proposal_hash = ?, proposal_revision = ?,
+          proposal_summary = ?, draft_reply = ?, slack_refresh_revision = ?, updated_at = ?
+        WHERE hubspot_ticket_id = ? AND proposal_hash = ? AND proposal_revision = ?
+          AND state = 'AWAITING_APPROVAL' AND decision IS NULL
+          AND approved_payload_hash IS NULL AND slack_team_id = ? AND slack_channel = ?
+          AND slack_message_ts = ? AND slack_post_status = 'POSTED'
+          AND slack_refresh_revision IS NULL AND evidence_status = 'SUPPORTED'
+          AND slack_review_deadline > ?
+          AND EXISTS (SELECT 1 FROM proposal_revisions r WHERE r.ticket_id = ?
+            AND r.revision = ? AND r.proposal_hash = ? AND r.edited_by = ?)`)
+          .bind(
+            input.proposalHash,
+            nextRevision,
+            input.proposal.summary,
+            input.proposal.draft_reply,
+            nextRevision,
+            at,
+            input.ticketId,
+            input.expectedHash,
+            input.expectedRevision,
+            input.teamId,
+            input.channelId,
+            input.messageTs,
+            at,
+            input.ticketId,
+            nextRevision,
+            input.proposalHash,
+            input.editorId,
+          ),
+        this.db
+          .prepare(`INSERT INTO events (id, ticket_id, event_type, at, details_redacted_json)
+        SELECT ?, ?, 'PROPOSAL_HUMAN_EDITED', ?, ? WHERE changes() = 1
+        ON CONFLICT (id) DO NOTHING`)
+          .bind(
+            `proposal-human-edited-${input.ticketId}-${nextRevision}`,
+            input.ticketId,
+            at,
+            JSON.stringify({
+              revision: nextRevision,
+              proposal_hash: input.proposalHash,
+              editor_id: input.editorId,
+            }),
+          ),
+      ]);
+      return (results[1]?.meta.changes ?? 0) === 1;
+    } catch {
+      return false;
+    }
+  }
+
+  async reserveSlackRefresh(
+    ticketId: string,
+    revision: number,
+    token: string,
+    now = new Date(),
+  ): Promise<boolean> {
+    const lockUntil = new Date(now.getTime() + 5 * 60_000).toISOString();
+    const result = await this.db
+      .prepare(`UPDATE tickets SET slack_refresh_token = ?,
+        slack_refresh_locked_until = ?, updated_at = ?
+      WHERE hubspot_ticket_id = ? AND slack_refresh_revision = ? AND proposal_revision = ?
+        AND proposal_hash IS NOT NULL AND decision IS NULL AND state = 'AWAITING_APPROVAL'
+        AND (slack_refresh_token IS NULL OR slack_refresh_locked_until <= ?)`)
+      .bind(token, lockUntil, now.toISOString(), ticketId, revision, revision, now.toISOString())
+      .run();
+    return (result.meta.changes ?? 0) === 1;
+  }
+
+  async completeSlackRefresh(ticketId: string, revision: number, token: string): Promise<boolean> {
+    const result = await this.db
+      .prepare(`UPDATE tickets SET slack_refresh_revision = NULL,
+        slack_refresh_token = NULL, slack_refresh_locked_until = NULL, updated_at = ?
+      WHERE hubspot_ticket_id = ? AND slack_refresh_revision = ? AND proposal_revision = ?
+        AND slack_refresh_token = ? AND decision IS NULL AND state = 'AWAITING_APPROVAL'`)
+      .bind(new Date().toISOString(), ticketId, revision, revision, token)
+      .run();
+    return (result.meta.changes ?? 0) === 1;
+  }
+
+  async listPendingSlackRefresh(): Promise<SlackReviewState[]> {
+    const result = await this.db
+      .prepare(`SELECT hubspot_ticket_id, workflow_instance_id, state,
+        evidence_status, proposal_hash, proposal_revision, slack_team_id, slack_channel,
+        slack_message_ts, slack_review_started_at, slack_review_deadline, slack_post_status,
+        slack_post_started_at, decision, decision_by, decision_at, decision_event_pending,
+        decision_event_delivery_attempts, slack_refresh_revision, slack_refresh_token,
+        slack_refresh_locked_until FROM tickets
+      WHERE slack_refresh_revision IS NOT NULL AND decision IS NULL
+        AND state = 'AWAITING_APPROVAL' AND slack_review_deadline > ?
+        AND (slack_refresh_token IS NULL OR slack_refresh_locked_until <= ?)
+        ORDER BY updated_at ASC, hubspot_ticket_id ASC LIMIT 1`)
+      .bind(new Date().toISOString(), new Date().toISOString())
+      .all<SlackReviewState>();
+    return result.results;
   }
 
   async listPendingDecisionEvents(limit = 5): Promise<PendingDecisionEvent[]> {
@@ -415,6 +615,16 @@ export class TicketRepository {
     }
   }
 
+  async getProposalRevisionHistory(ticketId: string): Promise<ProposalRevisionAudit[]> {
+    const result = await this.db
+      .prepare(`SELECT ticket_id, revision, proposal_hash, proposal_json, edit_reason,
+          edited_by, created_at FROM proposal_revisions
+        WHERE ticket_id = ? ORDER BY revision ASC LIMIT 5`)
+      .bind(ticketId)
+      .all<ProposalRevisionAudit>();
+    return result.results;
+  }
+
   async beginProcessing(ticketId: string, now = new Date()): Promise<void> {
     await this.db
       .prepare(`UPDATE tickets SET state = 'PROCESSING', updated_at = ?
@@ -522,7 +732,7 @@ export class TicketRepository {
         ),
     ];
     const results = await this.db.batch(statements);
-    return (results[0]?.meta.changes ?? 0) === 1;
+    return (results[0]?.meta.changes ?? 0) >= 1;
   }
 
   async markProposalManualReview(
@@ -692,6 +902,49 @@ export class TicketRepository {
     }
     return known;
   }
+}
+
+function revisionAuditFitsHubSpot(
+  history: readonly ProposalRevisionAudit[],
+  finalDraft: string,
+): boolean {
+  if (history.length < 1 || history.length > 4) return false;
+  let characters = 5_000 + escapeHtmlLength(finalDraft) + 1_440;
+  for (const row of history) {
+    let proposal: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(row.proposal_json);
+      if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return false;
+      proposal = parsed as Record<string, unknown>;
+    } catch {
+      return false;
+    }
+    const parts = [
+      `Revision ${row.revision} SHA-256: ${row.proposal_hash}`,
+      `Created at: ${row.created_at}`,
+      `Editor: ${row.edited_by ?? "Workers AI"}`,
+      ...(row.edit_reason === null
+        ? []
+        : [`Internal reason / solution change: ${row.edit_reason}`]),
+      `Internal summary: ${String(proposal.summary ?? "")}`,
+      `Response text: ${String(proposal.draft_reply ?? "")}`,
+    ];
+    characters +=
+      parts.reduce((total, part) => total + escapeHtmlLength(part), 0) + parts.length * 2;
+  }
+  return characters <= 60_000;
+}
+
+function escapeHtmlLength(value: string): number {
+  let length = 0;
+  for (const character of value) {
+    if (character === "&") length += 5;
+    else if (character === "<" || character === ">") length += 4;
+    else if (character === '"') length += 6;
+    else if (character === "'") length += 5;
+    else length += 1;
+  }
+  return length;
 }
 
 export function workflowInstanceId(ticketId: string): string {
