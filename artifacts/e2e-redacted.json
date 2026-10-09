@@ -1,17 +1,19 @@
 {
-  "generated_at": "2026-10-09T02:06:44.604Z",
+  "generated_at": "2026-10-09T02:27:07.299Z",
   "evidence_label": "LIVE_PROVIDER",
   "mode": "read_only_provider_and_ledger_verification",
   "approved_with_receipt_and_verified_note": [
-    "436649189587"
+    "436649189587",
+    "437231559928"
   ],
   "rejected_without_email": [
+    "436737423588",
     "437259884759"
   ],
   "unknown_manual_no_email": true,
   "technical_scenarios_passed": true,
-  "human_evidence_source": null,
-  "human_click_and_inbox_confirmed": false,
-  "status": "PENDING_HUMAN_LIVE_ACCEPTANCE",
+  "human_evidence_source": "owner_chat_confirmation",
+  "human_click_and_inbox_confirmed": true,
+  "status": "LIVE_ACCEPTANCE_PASSED",
   "note": "D1 provider receipts are checked, not independently fetched from send-only Resend. A signed simulator is not a human click; overall DONE also requires all other project gates."
 }

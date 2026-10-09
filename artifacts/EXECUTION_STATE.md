@@ -1,6 +1,6 @@
 # TicketPilot execution checkpoint
 
-Status: phases 0–6 technical implementation/provider scenarios/documentation complete and merged with passing GitHub checks. Final acceptance remains BLOCKED_EXTERNAL_ACCESS plus PENDING_HUMAN_LIVE_ACCEPTANCE, not DONE. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by later entries.
+Status: DONE live gates; phases 0–6 implemented, deployed and provider/human/inbox/CD verified. Final evidence and checker changes are reviewed through PR7; exact merged commit and push-release outcome are available in GitHub. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by later entries.
 
 ## Coordination
 
@@ -126,3 +126,11 @@ Status: phases 0–6 technical implementation/provider scenarios/documentation c
 - Actual verify:e2e confirms allthree technical scenarios and directly associated unique audit note, but intentionally reports PENDING_HUMAN_LIVE_ACCEPTANCE/nonzero. Do not rerun the signed simulators or restart accepted/ambiguous operations.
 - Remaining owner actions ONLY: authorize limited CI deployment access if desired; physically Approve premium437231559928 and Reject password436737423588 in the posted Slack messages, then confirm the particular premium email. Use protected commands in docs/DEMO.md, including operator-only interactive evidence recording after the actual actions. No missing implementation phase is hidden behind these gates.
 - Nonsensitive vault project/STATUS updated; no vault Git sync performed. Screen/system wake protection remains a run-scoped cleanup obligation: stop redacted tail16134, release helper78877 and verify originalPID113256 has exited immediately before final response. Do not infer an active wake request from this historical document after the response.
+
+## CD and human acceptance continuation
+
+- Owner authorized CD, then separately authorized account-level Workers Scripts Write after exact Workflows10000 denial. Dedicated token created; encrypted GitHub Actions secret saved through authenticated UI without printing the value or uploading broad OAuth. Expiry remains2026-11-09; D1 Write/Account Settings Read unchanged. No billing access. The token is NOT Worker-only after this explicit additional grant.
+- Run37874057267 attempt1 quality/migrations passed but deployment failed. Switch disabled during diagnosis; authorized permission updated and failed job alone rerun. Attempt2 quality/deploy/health succeeded, source82fe92c, versionc9e8c65c-aae1-428e-804a-5e1a993e8ff5. Switch nowtrue. Final branch merge will additionally exercise push-triggered release.
+- Owner confirmed billing436649189587 inbox receipt but correctly denied a physical Slack click for that simulated case. Subsequently personally Approve premium437231559928 and Reject password436737423588 from mobile; actual ledger COMPLETED/REJECTED, one/zero sends. Premiumreceipt01a11e78-ac09-7907-af10-74274e82a8b1, auditnote526077491399; direct associations and uniqueness verified. Owner separately confirmed NEW Premium email arrived.
+- Actual verify:e2e LIVE_ACCEPTANCE_PASSED, source owner_chat_confirmation. Ignored artifacts/human-acceptance.json binds exact ticket/receipt/decision_at2026-10-09T02:23:03.959Z. Never mislabel chat confirmation as interactive-terminal testimony. Checker regression tests reject unknown/simulator sources, incomplete confirmation and mismatched tuples. Supervisor124tests/20files/typecheck/lint pass, branches86.88% unchanged.
+- This continuation's wake helper is PID28624/session67009. It must remain active through final Git/CD checks and be released/termination-verified before final response; power plan unchanged. Earlier helper113256 was already released. The no-longer-needed capture terminal was closed after secure browser-to-GitHub transfer; no Cloudflare token was captured into local DPAPI.
