@@ -1,0 +1,23 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "ticketpilot-phase0-tests",
+  "main": "../src/index.ts",
+  "compatibility_date": "2026-10-09",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ticketpilot-phase0-tests",
+      "database_id": "bc56707f-9ce5-4e7b-9206-834116b6c1c1",
+      "migrations_dir": "../migrations"
+    }
+  ],
+  "vars": {
+    "TICKETPILOT_ENV": "demo",
+    "TICKETPILOT_VERSION": "test",
+    "NOTION_PARENT_PAGE_ID": "3f3d34323f1a80b48e71c5860aeccc45",
+    "SLACK_CHANNEL_ID": "C0C7X4Y182E",
+    "SLACK_TEAM_ID": "T0C7S09984V",
+    "SLACK_APPROVER_USER_ID": "U0C7X45H86N",
+    "DEMO_START_AT": "2026-10-09T00:00:00Z"
+  }
+}

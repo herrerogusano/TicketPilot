@@ -1,0 +1,32 @@
+{
+  "name": "ticketpilot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "generate:types": "wrangler types --strict-vars false",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src scripts test vitest.config.ts",
+    "format": "biome format --write src scripts test",
+    "test": "vitest run",
+    "preflight": "tsx scripts/preflight.ts",
+    "db:migrate:local": "wrangler d1 migrations apply ticketpilot-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply ticketpilot-db --remote",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.10",
+    "@cloudflare/vitest-plugin": "1.4.0",
+    "@types/node": "24.10.1",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "vitest": "5.0.3",
+    "wrangler": "4.149.0"
+  },
+  "dependencies": {
+    "zod": "4.6.5"
+  }
+}

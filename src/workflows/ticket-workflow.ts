@@ -1,0 +1,14 @@
+import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+
+export type TicketWorkflowParams = {
+  ticketId: string;
+};
+
+export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams> {
+  override async run(
+    _event: WorkflowEvent<TicketWorkflowParams>,
+    step: WorkflowStep,
+  ): Promise<{ status: "not_started" }> {
+    return step.do("phase-0-safe-placeholder", async () => ({ status: "not_started" }));
+  }
+}

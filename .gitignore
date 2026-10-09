@@ -1,0 +1,13 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.env.*
+!.dev.vars.example
+coverage/
+dist/
+worker-configuration.d.ts.tmp
+artifacts/preflight-redacted.json
+artifacts/preflight-resend.json
+artifacts/preflight-smoke-manifest.json
+seed-manifest*.json

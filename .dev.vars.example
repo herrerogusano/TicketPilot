@@ -1,0 +1,7 @@
+# Copy to .dev.vars and replace placeholders locally. Never commit .dev.vars.
+HUBSPOT_SERVICE_KEY=replace-with-local-secret
+NOTION_TOKEN=replace-with-local-secret
+SLACK_BOT_TOKEN=replace-with-local-secret
+SLACK_SIGNING_SECRET=replace-with-local-secret
+RESEND_API_KEY=replace-with-local-secret
+TEST_RECIPIENT_EMAIL=replace-with-owner-email

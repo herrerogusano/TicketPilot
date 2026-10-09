@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+PLAN.md whitespace=-blank-at-eol
+worker-configuration.d.ts whitespace=-blank-at-eol

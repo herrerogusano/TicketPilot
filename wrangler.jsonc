@@ -1,0 +1,56 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ticketpilot-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-09",
+  "account_id": "5e5f582388aee168349c2074d3ea9ee1",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 0.05
+    }
+  },
+  "vars": {
+    "TICKETPILOT_ENV": "demo",
+    "TICKETPILOT_VERSION": "0.1.0",
+    "NOTION_PARENT_PAGE_ID": "3f3d34323f1a80b48e71c5860aeccc45",
+    "SLACK_CHANNEL_ID": "C0C7X4Y182E",
+    "SLACK_TEAM_ID": "T0C7S09984V",
+    "SLACK_APPROVER_USER_ID": "U0C7X45H86N",
+    "DEMO_START_AT": "2026-10-09T00:09:06Z"
+  },
+  "secrets": {
+    "required": [
+      "HUBSPOT_SERVICE_KEY",
+      "NOTION_TOKEN",
+      "SLACK_BOT_TOKEN",
+      "SLACK_SIGNING_SECRET",
+      "RESEND_API_KEY",
+      "TEST_RECIPIENT_EMAIL"
+    ]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ticketpilot-db",
+      "database_id": "ae28f124-63a4-4537-b521-739e75c56ffa",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "workflows": [
+    {
+      "binding": "TICKET_WORKFLOW",
+      "name": "ticketpilot-workflow",
+      "class_name": "TicketWorkflow"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
+}
