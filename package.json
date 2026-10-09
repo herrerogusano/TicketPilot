@@ -13,6 +13,7 @@
     "format": "biome format --write src scripts test",
     "test": "vitest run",
     "preflight": "tsx scripts/preflight.ts",
+    "seed:hubspot": "tsx scripts/seed-hubspot.ts",
     "db:migrate:local": "wrangler d1 migrations apply ticketpilot-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply ticketpilot-db --remote",
     "deploy": "wrangler deploy"

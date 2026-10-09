@@ -680,4 +680,15 @@ async function main(): Promise<void> {
   process.exitCode = overall === "pass" ? 0 : overall === "incomplete" ? 2 : 1;
 }
 
-await main();
+if (process.argv.includes("--help") || process.argv.includes("-h")) {
+  process.stdout.write(
+    `TicketPilot preflight
+Usage: npm run preflight [-- --smoke-writes]
+Default mode performs read-only provider checks.
+--smoke-writes enables only the bounded, idempotent disposable checks documented by the project.
+--help prints this message without reading credentials or contacting providers.
+`,
+  );
+} else {
+  await main();
+}

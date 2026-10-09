@@ -12,11 +12,11 @@ const configuredInput = {
   SLACK_TEAM_ID: "T0C7S09984V",
   SLACK_APPROVER_USER_ID: "U123ABC",
   DEMO_START_AT: "2026-10-09T00:00:00Z",
-  HUBSPOT_SERVICE_KEY: "configured",
-  NOTION_TOKEN: "configured",
-  SLACK_BOT_TOKEN: "configured",
-  SLACK_SIGNING_SECRET: "configured",
-  RESEND_API_KEY: "configured",
+  HUBSPOT_SERVICE_KEY: "pat-test1234567890",
+  NOTION_TOKEN: "ntn_test123456789012345678901234567890",
+  SLACK_BOT_TOKEN: "xoxb-test-12345678901234567890",
+  SLACK_SIGNING_SECRET: "0123456789abcdef0123456789abcdef",
+  RESEND_API_KEY: "re_test123456789012345678901234",
   TEST_RECIPIENT_EMAIL: "demo@example.test",
 } satisfies RuntimeConfigInput;
 
@@ -35,6 +35,12 @@ describe("phase 0 safeguards", () => {
       validateRuntimeConfig({ ...configuredInput, SLACK_APPROVER_USER_ID: "PENDING_LOOKUP" }),
     ).toBe(false);
     expect(validateRuntimeConfig({ ...configuredInput, TEST_RECIPIENT_EMAIL: "" })).toBe(false);
+    expect(validateRuntimeConfig({ ...configuredInput, HUBSPOT_SERVICE_KEY: "replace-me" })).toBe(
+      false,
+    );
+    expect(validateRuntimeConfig({ ...configuredInput, SLACK_SIGNING_SECRET: "configured" })).toBe(
+      false,
+    );
   });
 
   it("reports only version and configured status from the health route", async () => {
