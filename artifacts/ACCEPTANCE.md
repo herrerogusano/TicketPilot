@@ -2,6 +2,12 @@
 
 This report records observed results, not predicted outcomes. All implementation and live acceptance gates have evidence: `DONE`. The owner physically approved Premium and rejected password reset in Slack, confirmed the particular Premium email arrived, and authorized the extra Cloudflare permission required for actual GitHub CD. Historical pending observations below are superseded by this final gate record.
 
+## Follow-up manual test and email presentation (2026-10-09)
+
+The owner personally approved additional synthetic ticket `437226439919` and confirmed that particular email arrived in chat. Authenticated D1 readback: COMPLETED, APPROVE, one Resend attempt, receipt `01a12081-1095-73ea-87d4-682492203414`, audit note `526182932701`, decision timestamp `2026-10-09T11:51:27.974Z`. Direct HubSpot reads verified the note's receipt and ticket association and exactly one associated audit marker. Evidence is LIVE_PROVIDER plus owner_chat_confirmation for LIVE_HUMAN_CLICK/INBOX_CONFIRMED, not mailbox telemetry. This email used the previous format.
+
+The subsequent owner-requested presentation change removes appended internal metadata from new email bodies and adds the ticket reason to the subject. Exact-request and legacy-retry regression tests cover it; no new-format inbox receipt is claimed. Existing reservations/delivered emails are not rewritten or resent. Supervisor typecheck/lint passed, all126tests/20files passed, domain/adapter branch coverage399/460=86.73% passed the per-file gate. Exact in-memory configured-secret/recipient audit passed85files; diff-check passed. Publication is verified separately through the matching merged-source Release demo run and its actual deployment/health steps, not inferred from these local tests.
+
 ## Evidence labels
 
 - `UNIT`: deterministic domain/adapter checks with fixtures.
@@ -73,6 +79,10 @@ Slack HTTP interactivity is registered. The owner completed the reserved physica
 Read-only smoke and exact in-memory configured-secret/recipient audit passed after real deployment (82 unignored/tracked files checked). This audit is not a guarantee about unknown historical credentials. The current secret-value configuration remains outside this synced repository; transient deployment plaintext was deleted and absence checked.
 
 ## Scope and cost
+
+### Owner-authorized non-expiring CD credential — 2026-10-09
+
+The owner explicitly requested a non-expiring replacement with unchanged permissions. Dashboard readback confirmed No expiration for `TicketPilot GitHub Deploy Permanent`. A temporary value disclosed by a browser-tool output was immediately invalidated by successful Roll; the current rolled value was transferred to the encrypted GitHub Actions secret after owner GitHub Mobile reauthentication, with sanitized observations. No credential values belong in this report. Release [37920135716](https://github.com/herrerogusano/TicketPilot/actions/runs/37920135716) used that replacement and passed typecheck, lint, all124tests, coverage86.88%, current-head guard, remote migrations, deployment and real health. Source7aec4d2, deployed version1f471130-fb62-4441-8656-578a14410117. Only after that success was the old November-expiring token deleted; the account list then showed exactly one token, the replacement, Active. CD is enabled. No permission or billing expansion occurred.
 
 Cloudflare Free and included usage limits were reviewed. No paid upgrade, purchased domain or billing setting change occurred. GitHub Free included Actions capacity was verified sufficient for the bounded checks. Slack's signup trial is not evidence of a permanent Free subscription; implementation must remain Free-compatible.
 

@@ -246,6 +246,13 @@ describe("Phase 4 approved-only email and audit Workflow", () => {
       expect(providers.sendRequests[0]?.idempotencyKey).toBe(`ticketpilot/${firstId}/v1`);
       expect(providers.sendRequests[0]?.body.to).toEqual([recipient]);
       expect(providers.sendRequests[0]?.body.to).not.toContain("customer@example.com");
+      expect(providers.sendRequests[0]?.body.subject).toBe(
+        `[TicketPilot DEMO] Ticket ${firstId} — Synthetic ${firstId}`,
+      );
+      expect(providers.sendRequests[0]?.body.text).toBe(proposal.draft_reply);
+      expect(JSON.stringify(providers.sendRequests[0]?.body)).not.toMatch(
+        /Category:|Priority:|Summary:|Rationale:|Policy keys:/,
+      );
       expect(providers.noteCalls).toHaveLength(1);
       expect(providers.noteCalls[0]).toContain("[TICKETPILOT-AUDIT:");
       expect(providers.noteCalls[0]).toContain("Resend message ID: email-1");
@@ -328,6 +335,69 @@ describe("Phase 4 approved-only email and audit Workflow", () => {
       expect(providers.noteCalls).toHaveLength(1);
     } finally {
       await second.dispose();
+    }
+  });
+
+  it("retries a stored legacy payload unchanged and does not resend after completion", async () => {
+    await insertProposal(firstId);
+    await markPosted(firstId);
+    await recordDecision(firstId);
+    const legacyPayload = {
+      from: "TicketPilot Demo <onboarding@resend.dev>" as const,
+      to: [recipient] as [string],
+      subject: `[TicketPilot DEMO] Ticket ${firstId} — Response`,
+      text: [
+        `Ticket ${firstId}`,
+        `Category: ${proposal.category}`,
+        `Priority: ${proposal.priority}`,
+        `Summary: ${proposal.summary}`,
+        "",
+        proposal.draft_reply,
+      ].join("\n"),
+    };
+    const legacyJson = JSON.stringify(legacyPayload);
+    const legacyHash = await hashEmailPayload(legacyPayload);
+    const repository = new EmailDeliveryRepository(env.DB);
+    expect(
+      await repository.reserveApprovedEmail(
+        String(firstId),
+        {
+          proposalHash: proposal.proposalHash,
+          proposalRevision: proposal.revision,
+          approverId: actor,
+          teamId: team,
+          channelId: channel,
+        },
+        {
+          payloadJson: legacyJson,
+          payloadHash: legacyHash,
+          idempotencyKey: `ticketpilot/${firstId}/v1`,
+          recipientAlias: "t***@example.test",
+        },
+      ),
+    ).toBe(true);
+    const now = new Date();
+    expect(await repository.recordRateLimit(String(firstId), 1, now, now)).toBe("retry_pending");
+    const providers = stubProviders({ resendStatuses: [200] });
+    const retry = await startWorkflow(firstId, "phase4-legacy-payload-retry");
+    await retry.dispose();
+    expect(await repository.get(String(firstId))).toMatchObject({
+      state: "COMPLETED",
+      immutable_email_payload_json: legacyJson,
+      approved_payload_hash: legacyHash,
+    });
+    expect(providers.sendRequests).toHaveLength(1);
+    expect(providers.sendRequests[0]?.body).toEqual(legacyPayload);
+
+    const replay = await startWorkflow(firstId, "phase4-legacy-payload-completed-replay");
+    try {
+      expect(await replay.getOutput()).toMatchObject({ status: "completed" });
+      expect(providers.sendRequests).toHaveLength(1);
+      expect((await repository.get(String(firstId)))?.immutable_email_payload_json).toBe(
+        legacyJson,
+      );
+    } finally {
+      await replay.dispose();
     }
   });
 

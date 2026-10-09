@@ -16,6 +16,8 @@ Use the recorded seed manifest rather than creating another set of tickets. The 
 
 Allow for the five-minute poll interval and provider timing. The 48-hour decision deadline is not a reason to leave a Codex session running merely waiting for a human.
 
+For newly reserved emails, inspect the subject for the original ticket reason (without the `[TP-DEMO]` intake tag), alongside the demo marker and ticket ID. The body must match the approved Slack draft exactly, with no appended category, priority or internal summary. Previously reserved/delivered messages retain their original immutable format; do not resend them to demonstrate the new presentation.
+
 ## Current operator acceptance
 
 The existing demonstration has already exercised real providers using clearly labeled signed test callbacks: duplicate charge (`436649189587`) is completed with one accepted email and one verified note; CSV export (`437259884759`) is rejected with zero email attempts. The unknown parking case (`437245230283`) is manual-only. Repeated callbacks did not duplicate decisions or sends. These are **not** human clicks or inbox proof.

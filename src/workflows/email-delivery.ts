@@ -1,6 +1,7 @@
 import type { WorkflowStep } from "cloudflare:workers";
 import { HubSpotClient, HubSpotError } from "../adapters/hubspot";
 import {
+  buildDemoEmailSubject,
   buildImmutableEmailPayload,
   hashEmailPayload,
   parseImmutableEmailPayload,
@@ -63,7 +64,12 @@ export async function handleDurableDecision(
   }
 
   if (row.state === "APPROVED") {
-    const payload = buildImmutableEmailPayload(ticketId, proposal, env.TEST_RECIPIENT_EMAIL);
+    const payload = buildImmutableEmailPayload(
+      ticketId,
+      proposal,
+      env.TEST_RECIPIENT_EMAIL,
+      row.subject,
+    );
     const payloadHash = await step.do("phase4-hash-email-payload", noRetryStep, () =>
       hashEmailPayload(payload),
     );
@@ -219,10 +225,12 @@ async function sendReservedEmail(
     return { status: "send_unknown" };
   }
   const payload = parseImmutableEmailPayload(decoded);
+  const legacySubject = `[TicketPilot DEMO] Ticket ${ticketId} — Response`;
   if (
     payload === null ||
     payload.to[0] !== env.TEST_RECIPIENT_EMAIL ||
-    payload.subject !== `[TicketPilot DEMO] Ticket ${ticketId} — Response`
+    (payload.subject !== buildDemoEmailSubject(ticketId, row.subject) &&
+      payload.subject !== legacySubject)
   ) {
     await step.do("phase4-mark-invalid-payload-unknown", noRetryStep, () =>
       repository.markSendUnknown(ticketId, row.resend_attempts),

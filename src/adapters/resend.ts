@@ -31,26 +31,37 @@ export function buildImmutableEmailPayload(
   ticketId: string,
   proposal: StoredProposal,
   recipient: string,
+  ticketSubject = "",
 ): ImmutableEmailPayload {
   if (!/^\d+$/.test(ticketId)) throw new Error("invalid_ticket_id");
   if (proposal.evidence_status !== "SUPPORTED" || proposal.draft_reply.trim() === "") {
     throw new Error("email_requires_supported_proposal");
   }
-  const subject = `[TicketPilot DEMO] Ticket ${ticketId} — Response`;
-  const text = [
-    `Ticket ${ticketId}`,
-    `Category: ${proposal.category}`,
-    `Priority: ${proposal.priority}`,
-    `Summary: ${proposal.summary}`,
-    "",
-    proposal.draft_reply,
-  ].join("\n");
+  const subject = buildDemoEmailSubject(ticketId, ticketSubject);
+  const text = proposal.draft_reply;
   return {
     from: "TicketPilot Demo <onboarding@resend.dev>",
     to: [recipient],
     subject,
     text,
   };
+}
+
+export function buildDemoEmailSubject(ticketId: string, ticketSubject: string): string {
+  if (!/^\d+$/.test(ticketId)) throw new Error("invalid_ticket_id");
+  const prefix = `[TicketPilot DEMO] Ticket ${ticketId} — `;
+  const titleBudget = 240 - prefix.length;
+  const originalTitle = ticketSubject.replace(/^\[TP-DEMO\]\s*/, "");
+  const safeTitle = Array.from(originalTitle, (character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || (code >= 127 && code <= 159) ? " " : character;
+  }).join("");
+  const title = safeTitle
+    .replace(/\s{2,}/g, " ")
+    .trim()
+    .slice(0, titleBudget)
+    .trim();
+  return `${prefix}${title || "Response"}`;
 }
 
 export async function hashEmailPayload(payload: ImmutableEmailPayload): Promise<string> {
