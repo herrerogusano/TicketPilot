@@ -53,7 +53,7 @@ export type StoredProposal = TicketProposal & {
 export type TicketLanguage = "en" | "es";
 
 export function detectTicketLanguage(subject: string, body: string): TicketLanguage {
-  const text = `${subject.slice(0, 160)} ${body.slice(0, 1_600)}`.toLocaleLowerCase("en");
+  const text = `${subject} ${body}`.slice(0, 3_200).toLocaleLowerCase("en");
   const spanishSignal =
     /[áéíóúñ¿¡]/i.test(text) ||
     /\b(?:ayuda|cobro|factura|necesito|quiero|contraseña|restablecer|derivar|puedo|tengo|por favor)\b/i.test(
@@ -61,7 +61,7 @@ export function detectTicketLanguage(subject: string, body: string): TicketLangu
     );
   if (spanishSignal) return "es";
   const englishSignal =
-    /\b(?:i|i'm|my|the|please|help|need|want|charge|invoice|password|reset|can't|cannot|export|account|parking)\b/i.test(
+    /\b(?:i|i'm|my|the|please|help|need|want|charge|invoice|password|reset|can't|cannot|export|account|parking|activation|features|upgrade|question|available|become)\b/i.test(
       text,
     );
   return englishSignal ? "en" : "es";

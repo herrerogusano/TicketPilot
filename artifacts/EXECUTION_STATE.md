@@ -76,3 +76,26 @@ Status: implementation in progress, phase 1. PLAN.md and AGENTS.md remain author
 - Reused implementation worker begins bounded Phase3 offline Slack/signatures/durable decisions/wait/reconciliation; root retains live deployment, config, documentation and Git ownership. No additional agents or dependencies.
 - Operational caveat discovered: describe --json emits full step output even with --no-step-output. Capture/parse JSON privately and emit only allowlisted metadata; do not print raw JSON in routine diagnostics.
 - All five actual seed workflows now persisted proposals: four SUPPORTED with their corresponding policy and one AI attempt each; unknown office-parking case NEEDS_MANUAL_REVIEW/INSUFFICIENT_EVIDENCE with zero AI attempts. Actual daily AI reservations4. Phase2 live exit passed; no Slack messages or application emails yet.
+- Live draft inspection: corresponding-policy action suggestions, no completed-action claim. However English seed inputs produced Spanish replies and some generic TECHNICAL classifications; do not claim perfect language/category accuracy. Worker will add explicit trusted detected-language instruction for future proposals, with regression tests; existing immutable proposals will not be silently regenerated.
+- Phase2 redacted tail: five Workflow invocations aggregateCPU37–47ms/outcomeok; repeatcronCPU12/14ms/outcomeok. Workflow totals are not per-step metrics, and cron exceeds nominal Free10ms. Keep this caveat visible; no paid upgrade or capacity guarantee.
+- Frozen phase2 commit20bf251 passed push and PR checks37867662629/37867677597; PR2 merged squash master76b4a7c. MasterCI37867809123 passed; release37867809086 quality passed/deploy skipped (still no CD evidence).
+- Current shared branch feat/slack-review is stacked on phase2 commit; after worker freeze, merge updated origin/master ancestry safely before PR3. Preserve WIP; do not reset/rebase worker files.
+- Read-only credential preflight rerun at01:03:41Z: all attempted reads/auth/Free-plan checks passed; overall incomplete because disposable write/AI smoke intentionally not rerun. This is not a new failed live integration and must not trigger extra emails/AI or overwrite historical phase0 smoke acceptance.
+- Removed only root-owned ignored temporary .wrangler/phase1-diagnostic-entry.ts after production deploy returned to src/index.ts. Do not delete local D1, migrations, seed manifests or other .wrangler contents.
+
+## Phase 3 supervisor review
+
+- Implementer initial gates passed73 tests/12files, typecheck/lint; no provider writes/deploy/commits. Added HMAC-before-parse/raw-body bounds, exact actor/team/channel/proposal/message matching, atomic first-decision+event, durable deadline/outbox, bounded event delivery and Workflow runtime tests.
+- Supervisor returned bounded fixes before production: a duplicate Workflow must not invalidate the current owner's in-flight Slack-post reservation; add stale lease handling and overlap test. Add scheduled source-failure/outbox independence regression. Narrow ambiguous English language cues. Classify unknown/internal Slack post errors conservatively.
+- Raw UTF8 BOM stripping issue already fixed with decoder ignoreBOM:true and regression: altered raw bytes must invalidate HMAC. Deadline enforced inside D1 CAS, independent of delayed Workflow timers. No email path yet.
+- Next: final frozen handoff, supervisor gates, remote0004 and protected phase3deploy, post ONLY unknown-policy seed as initial safe manual-review provider gate. Supported proposals stay unposted until phase4send integration is ready. Then continue phase4 offline, not wait for humans prematurely.
+- Phase5 still must implement genuine test:integration/smoke/verify:e2e scripts (not aliases pretending live checks), event-retention/cleanup bounds, real provider/negative scenario evidence and secret/quota audit. Phase6 docs need final actual results, not merely current draft packaging.
+- Coverage feasibility checked: installed Vitest5.0.3 lacks a coverage provider. Official Workers known-issues requires Istanbul instrumentation (not V8); npm metadata confirms @vitest/coverage-istanbul5.0.3 exactpeerVitest5.0.3. During Phase5 root may add this TEST-ONLY pinned dependency and measure meaningful domain/adapter coverage; no production dependency/architecture change or fabricated percentage.
+
+## Phase 3 deployment checkpoint
+
+- Supervisor independently passed all76tests/13files, typecheck, lint and diff-check. Expected forced-timeout diagnostic did not fail the test suite.
+- Remote0004 applied; deployed79abce2b-33e9-420b-ad61-6d7b3d69df7f. Health200/configuredtrue; unsigned Slack POST401. Protected transient plaintext file absence verified.
+- Unknown seed437245230283 was examined: complete phase2 Workflow with manual_review output; D1 insufficient evidence, no Slack receipt/attempt and no Resend receipt. Root restarted ONLY this safe cached proposal for the initial manual-only Slack provider gate. Supported four remain unposted until Phase4 delivery protection is integrated.
+- Implementation worker preparing Phase4 offline; hold production edits until root commits Phase3 snapshot. No live email authorization inferred from event simulation.
+- Wake PID113256/session78877 continues active; restore before ANY final response.

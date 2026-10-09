@@ -1,31 +1,57 @@
-import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
+import {
+  WorkflowEntrypoint,
+  type WorkflowEvent,
+  type WorkflowStep,
+  type WorkflowStepEvent,
+} from "cloudflare:workers";
 import { type ProposalInference, WorkersAiAdapter } from "../adapters/ai";
 import { HubSpotClient } from "../adapters/hubspot";
 import { NotionClient } from "../adapters/notion";
+import { SLACK_POST_TIMEOUT_MS, SlackApiError, SlackClient } from "../adapters/slack";
 import { ticketIsEligible } from "../discovery";
 import {
   detectTicketLanguage,
   type PolicyDocument,
   type PolicyEvidence,
   policyKeys,
+  type StoredProposal,
   type TicketProposal,
   unsupportedProposal,
 } from "../domain/contracts";
 import { selectPolicies } from "../domain/policy-selection";
 import { NO_MODEL_PROMPT_VERSION, PROMPT_VERSION } from "../domain/prompt";
-import { TicketRepository } from "../state/ticket-repository";
+import { TICKET_DECISION_EVENT_TYPE } from "../state/decision-events";
+import { type SlackReviewState, TicketRepository } from "../state/ticket-repository";
 
 export type TicketWorkflowParams = { ticketId: string };
 export type Phase2Result = {
-  status: "proposal_saved" | "proposal_reused" | "manual_review" | "skipped";
+  status:
+    | "proposal_saved"
+    | "proposal_reused"
+    | "awaiting_decision"
+    | "decision_received"
+    | "expired"
+    | "manual_review"
+    | "skipped";
   evidence_status?: "SUPPORTED" | "INSUFFICIENT_EVIDENCE";
   cited_policy_keys?: string[];
+  decision?: "APPROVE" | "REJECT";
+};
+
+type TicketDecisionEvent = {
+  ticketId: string;
+  decision: "APPROVE" | "REJECT";
+  actorId: string;
+  decidedAt: string;
+  proposalHash: string;
+  proposalRevision: number;
 };
 
 const nonRetryableStep = {
   retries: { limit: 0, delay: 1_000, backoff: "constant" as const },
   timeout: 30_000,
 };
+const SLACK_POST_LEASE_MS = SLACK_POST_TIMEOUT_MS + 22_000;
 
 export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams> {
   override async run(
@@ -52,11 +78,7 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
       () => repository.getProposal(ticketId),
     );
     if (existing !== null) {
-      return {
-        status: "proposal_reused",
-        evidence_status: existing.evidence_status,
-        cited_policy_keys: existing.cited_policy_keys,
-      };
+      return this.runSlackReview(step, repository, ticketId, existing);
     }
     if (row.state !== "PROCESSING" || row.proposal_hash !== null) return { status: "skipped" };
     if (row.ai_call_attempts > 0) {
@@ -239,19 +261,179 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
         () => repository.getProposal(ticketId),
       );
       if (existing !== null) {
-        return {
-          status: "proposal_reused",
-          evidence_status: existing.evidence_status,
-          cited_policy_keys: existing.cited_policy_keys,
-        };
+        return this.runSlackReview(step, repository, ticketId, existing);
       }
       return { status: "skipped" };
     }
-    return {
-      status: proposal.evidence_status === "SUPPORTED" ? "proposal_saved" : "manual_review",
-      evidence_status: proposal.evidence_status,
-      cited_policy_keys: proposal.cited_policy_keys,
+    const stored: StoredProposal = {
+      ...proposal,
+      proposalHash,
+      revision: 1,
+      promptVersion,
+      policyEvidence: [...evidence],
     };
+    return this.runSlackReview(step, repository, ticketId, stored);
+  }
+
+  private async runSlackReview(
+    step: WorkflowStep,
+    repository: TicketRepository,
+    ticketId: string,
+    proposal: StoredProposal,
+  ): Promise<Phase2Result> {
+    let state = await step.do<Awaited<ReturnType<TicketRepository["getSlackReviewState"]>>>(
+      "phase3-load-slack-review",
+      nonRetryableStep,
+      () => repository.getSlackReviewState(ticketId),
+    );
+    if (state === null || state.proposal_hash !== proposal.proposalHash) {
+      return { status: "manual_review", evidence_status: proposal.evidence_status };
+    }
+    if (state.decision !== null) {
+      return durableDecisionAllowed(state, this.env.SLACK_APPROVER_USER_ID)
+        ? decisionResult(state.decision, proposal)
+        : { status: "manual_review", evidence_status: proposal.evidence_status };
+    }
+    if (state.state === "EXPIRED" || state.state === "REJECTED") {
+      return { status: state.state === "EXPIRED" ? "expired" : "decision_received" };
+    }
+
+    if (state.slack_post_status === "IN_PROGRESS") {
+      await step.do("phase3-reconcile-unknown-slack-post", nonRetryableStep, () =>
+        markSlackPostUnknownIfStale(repository, ticketId, state?.slack_post_started_at),
+      );
+      return { status: "manual_review", evidence_status: proposal.evidence_status };
+    }
+    if (state.slack_post_status === "NOT_STARTED") {
+      const postResult = await step.do<"posted" | "manual_review" | "already_posted">(
+        "phase3-post-review-message-once",
+        nonRetryableStep,
+        async () => {
+          if (!(await repository.reserveSlackPost(ticketId))) {
+            const current = await repository.getSlackReviewState(ticketId);
+            if (current?.slack_post_status === "POSTED") return "already_posted";
+            if (current?.slack_post_status === "IN_PROGRESS") {
+              await markSlackPostUnknownIfStale(
+                repository,
+                ticketId,
+                current.slack_post_started_at,
+              );
+            }
+            return "manual_review";
+          }
+          try {
+            const receipt = await new SlackClient(this.env.SLACK_BOT_TOKEN).postReviewMessage(
+              this.env.SLACK_CHANNEL_ID,
+              { ticketId, proposal, evidence: proposal.policyEvidence },
+            );
+            const persisted = await repository.completeSlackPost(
+              ticketId,
+              this.env.SLACK_TEAM_ID,
+              receipt.channelId,
+              receipt.messageTs,
+            );
+            return persisted ? "posted" : "manual_review";
+          } catch (error) {
+            const unknown = !(error instanceof SlackApiError) || error.outcome === "unknown";
+            await repository.failSlackPost(
+              ticketId,
+              unknown ? "UNKNOWN" : "FAILED",
+              unknown ? "SLACK_POST_OUTCOME_UNKNOWN" : "SLACK_POST_REJECTED",
+            );
+            return "manual_review";
+          }
+        },
+      );
+      if (postResult === "manual_review") {
+        return { status: "manual_review", evidence_status: proposal.evidence_status };
+      }
+      state = await step.do("phase3-confirm-slack-review-state", nonRetryableStep, () =>
+        repository.getSlackReviewState(ticketId),
+      );
+    }
+    if (
+      state === null ||
+      state.slack_post_status !== "POSTED" ||
+      state.slack_team_id !== this.env.SLACK_TEAM_ID ||
+      state.slack_channel !== this.env.SLACK_CHANNEL_ID ||
+      state.slack_message_ts === null ||
+      state.slack_review_deadline === null
+    ) {
+      return { status: "manual_review", evidence_status: proposal.evidence_status };
+    }
+    if (state.decision !== null) {
+      return durableDecisionAllowed(state, this.env.SLACK_APPROVER_USER_ID)
+        ? decisionResult(state.decision, proposal)
+        : { status: "manual_review", evidence_status: proposal.evidence_status };
+    }
+
+    const remainingMs = Date.parse(state.slack_review_deadline) - Date.now();
+    if (remainingMs <= 0) {
+      await step.do("phase3-expire-slack-review", nonRetryableStep, () =>
+        repository.expireSlackReview(ticketId),
+      );
+      const afterExpiry = await step.do("phase3-read-after-expiry", nonRetryableStep, () =>
+        repository.getSlackReviewState(ticketId),
+      );
+      return afterExpiry?.decision !== null && afterExpiry?.decision !== undefined
+        ? durableDecisionAllowed(afterExpiry, this.env.SLACK_APPROVER_USER_ID)
+          ? decisionResult(afterExpiry.decision, proposal)
+          : { status: "manual_review", evidence_status: proposal.evidence_status }
+        : { status: afterExpiry?.state === "EXPIRED" ? "expired" : "manual_review" };
+    }
+
+    let event: WorkflowStepEvent<TicketDecisionEvent> | null = null;
+    try {
+      event = await step.waitForEvent<TicketDecisionEvent>("phase3-wait-for-human-decision", {
+        type: TICKET_DECISION_EVENT_TYPE,
+        timeout: `${Math.max(1, Math.ceil(remainingMs / 1_000))} seconds`,
+      });
+    } catch {
+      const current = await step.do("phase3-reconcile-timeout-winner", nonRetryableStep, () =>
+        repository.getSlackReviewState(ticketId),
+      );
+      if (current?.decision !== null && current?.decision !== undefined) {
+        return durableDecisionAllowed(current, this.env.SLACK_APPROVER_USER_ID)
+          ? decisionResult(current.decision, proposal)
+          : { status: "manual_review", evidence_status: proposal.evidence_status };
+      }
+      await step.do("phase3-expire-after-timeout", nonRetryableStep, () =>
+        repository.expireSlackReview(ticketId),
+      );
+      const afterExpiry = await step.do("phase3-read-after-timeout", nonRetryableStep, () =>
+        repository.getSlackReviewState(ticketId),
+      );
+      if (afterExpiry?.decision !== null && afterExpiry?.decision !== undefined) {
+        return durableDecisionAllowed(afterExpiry, this.env.SLACK_APPROVER_USER_ID)
+          ? decisionResult(afterExpiry.decision, proposal)
+          : { status: "manual_review", evidence_status: proposal.evidence_status };
+      }
+      if (afterExpiry?.state === "EXPIRED") return { status: "expired" };
+      throw new Error("decision_wait_interrupted");
+    }
+
+    const received: unknown = event.payload;
+    if (!isTicketDecisionEvent(received)) {
+      return { status: "manual_review", evidence_status: proposal.evidence_status };
+    }
+    const current = await step.do("phase3-verify-persisted-decision", nonRetryableStep, () =>
+      repository.getSlackReviewState(ticketId),
+    );
+    if (
+      current === null ||
+      received.ticketId !== ticketId ||
+      received.proposalHash !== proposal.proposalHash ||
+      received.proposalRevision !== proposal.revision ||
+      current.decision !== received.decision ||
+      current.decision_by !== received.actorId ||
+      received.actorId !== this.env.SLACK_APPROVER_USER_ID ||
+      current.decision_at !== received.decidedAt ||
+      current.proposal_hash !== received.proposalHash ||
+      current.proposal_revision !== received.proposalRevision
+    ) {
+      return { status: "manual_review", evidence_status: proposal.evidence_status };
+    }
+    return decisionResult(current.decision, proposal);
   }
 
   private async markFailure(
@@ -265,6 +447,60 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
     );
     return { status: "manual_review" };
   }
+}
+
+async function markSlackPostUnknownIfStale(
+  repository: TicketRepository,
+  ticketId: string,
+  startedAt: string | null | undefined,
+  now = Date.now(),
+): Promise<boolean> {
+  if (startedAt === null || startedAt === undefined) return false;
+  const startedAtMs = Date.parse(startedAt);
+  if (!Number.isFinite(startedAtMs) || now - startedAtMs < SLACK_POST_LEASE_MS) return false;
+  return repository.failStaleSlackPost(
+    ticketId,
+    new Date(startedAtMs + SLACK_POST_LEASE_MS),
+    new Date(now),
+  );
+}
+
+function decisionResult(decision: "APPROVE" | "REJECT", proposal: StoredProposal): Phase2Result {
+  return {
+    status: "decision_received",
+    decision,
+    evidence_status: proposal.evidence_status,
+    cited_policy_keys: proposal.cited_policy_keys,
+  };
+}
+
+function isTicketDecisionEvent(value: unknown): value is TicketDecisionEvent {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const event = value as Record<string, unknown>;
+  return (
+    typeof event.ticketId === "string" &&
+    /^\d+$/.test(event.ticketId) &&
+    (event.decision === "APPROVE" || event.decision === "REJECT") &&
+    typeof event.actorId === "string" &&
+    typeof event.decidedAt === "string" &&
+    Number.isFinite(Date.parse(event.decidedAt)) &&
+    typeof event.proposalHash === "string" &&
+    /^[a-f0-9]{64}$/.test(event.proposalHash) &&
+    Number.isSafeInteger(event.proposalRevision) &&
+    Number(event.proposalRevision) > 0
+  );
+}
+
+function durableDecisionAllowed(
+  state: Pick<SlackReviewState, "decision" | "decision_by" | "decision_at">,
+  approverId: string,
+): boolean {
+  return (
+    state.decision !== null &&
+    state.decision_by === approverId &&
+    state.decision_at !== null &&
+    Number.isFinite(Date.parse(state.decision_at))
+  );
 }
 
 function evidenceFor(

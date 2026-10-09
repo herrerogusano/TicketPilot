@@ -20,6 +20,12 @@
   "application_emails": 0,
   "human_approval": "NOT_RUN",
   "inbox_application_delivery": "NOT_RUN",
+  "runtime_observations": {
+    "workflow_invocation_cpu_ms_observed": [47, 38, 37, 40, 40],
+    "repeat_cron_cpu_ms_observed": [12, 14],
+    "outcomes": "ok",
+    "qualification": "Workflow invocation CPU is aggregate, not a measured per-step budget. Cron exceeded nominal Free 10ms despite successful outcomes; no capacity guarantee or paid upgrade."
+  },
   "notes": [
     "Only verified phase-1 safe-placeholder instances were restarted; restart used the new workflow version.",
     "Counters and proposal presence were read from actual remote D1, not inferred from local fixtures.",
