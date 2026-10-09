@@ -20,7 +20,7 @@ Allow for the five-minute poll interval and provider timing. The 48-hour decisio
 
 The existing demonstration has already exercised real providers using clearly labeled signed test callbacks: duplicate charge (`436649189587`) is completed with one accepted email and one verified note; CSV export (`437259884759`) is rejected with zero email attempts. The unknown parking case (`437245230283`) is manual-only. Repeated callbacks did not duplicate decisions or sends. These are **not** human clicks or inbox proof.
 
-In [the demo Slack channel](https://app.slack.com/client/T0C7S09984V/C0C7X4Y182E), the owner should physically click **Approve** on premium activation (`437231559928`) and **Reject** on password reset (`436737423588`). Read the immutable draft before approving; current live English-input drafts are in Spanish, an explicitly recorded limitation. Approval sends one real demo email to the configured owner only. Confirm the particular mailbox message whose subject contains `Ticket 437231559928`.
+In [the demo Slack channel](https://app.slack.com/client/T0C7S09984V/C0C7X4Y182E), the owner physically clicked **Approve** on premium activation (`437231559928`) and **Reject** on password reset (`436737423588`). Approval sent one real demo email to the configured owner only, and the particular mailbox message whose subject contains `Ticket 437231559928` was confirmed received. Current immutable English-input drafts are in Spanish, an explicitly recorded limitation.
 
 The review deadline is48hours from the posted message, not from when this document is opened. If the proposal is expired, do not reset or replay an accepted/ambiguous operation; inspect its durable state first.
 

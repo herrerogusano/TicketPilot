@@ -1,6 +1,6 @@
 # TicketPilot execution checkpoint
 
-Status: DONE live gates; phases 0–6 implemented, deployed and provider/human/inbox/CD verified. Final acceptance-evidence PR integration remains the current Git handoff task. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by later entries.
+Status: DONE live gates; phases 0–6 implemented, deployed and provider/human/inbox/CD verified. Final evidence and checker changes are reviewed through PR7; exact merged commit and push-release outcome are available in GitHub. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by later entries.
 
 ## Coordination
 

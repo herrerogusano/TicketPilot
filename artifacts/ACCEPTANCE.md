@@ -49,7 +49,7 @@ Manual inspection of these four actual drafts found corresponding-policy suggest
 ## Deployment
 
 - Verified URL: https://ticketpilot-api.herrerogusano-ticketpilot.workers.dev
-- Current CD-verified version: `c9e8c65c-aae1-428e-804a-5e1a993e8ff5`, source master`82fe92c`, uploaded by GitHub run37874057267 attempt2. Local protected bootstrap versions remain historical evidence.
+- First CD-verified version: `c9e8c65c-aae1-428e-804a-5e1a993e8ff5`, source master`82fe92c`, uploaded by GitHub run37874057267 attempt2. Later push-triggered publication is visible in the repository's Release demo runs. Local protected bootstrap versions remain historical evidence.
 - Actual deploy job and health verification succeeded; Worker startup25ms is startup time, not request CPU or Workflow step CPU.
 - D1, AI, Workflow and `*/5 * * * *` scheduled bindings were returned by actual deployment. The scheduled configuration was also read back from the authenticated API.
 - Secured phase-3 decision handling is deployed; actual unsigned POST returned401. Health returned200/configuredtrue. The transient protected plaintext deployment file was removed and its absence verified.
