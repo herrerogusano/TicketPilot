@@ -1,6 +1,6 @@
 # Acceptance evidence
 
-This report records observed results, not predicted outcomes. Technical implementation/provider scenarios are complete. Final status is `BLOCKED_EXTERNAL_ACCESS` (dedicated CD grant not authorized), additionally `PENDING_HUMAN_LIVE_ACCEPTANCE` (physical click/particular inbox message not confirmed). It is not DONE.
+This report records observed results, not predicted outcomes. All implementation and live acceptance gates have evidence: `DONE`. The owner physically approved Premium and rejected password reset in Slack, confirmed the particular Premium email arrived, and authorized the extra Cloudflare permission required for actual GitHub CD. Historical pending observations below are superseded by this final gate record.
 
 ## Evidence labels
 
@@ -15,7 +15,7 @@ This report records observed results, not predicted outcomes. Technical implemen
 | Gate | Observed evidence | Result |
 | --- | --- | --- |
 | Types / lint | Supervisor `npm run typecheck`, `npm run lint` | Passed |
-| Tests | Supervisor full Istanbul run:19 files,119 tests; typecheck/lint/diff-check | Passed |
+| Tests | Supervisor full Istanbul run:20 files,124 tests; typecheck/lint/diff-check | Passed |
 | Branch coverage | Domain/adapters391/450=86.88%; every module above80%, no artificial exclusions | Measured; CI enforces80% per file |
 | Admission / recovery | Local real D1 constraints, duplicate overlap, daily quota, deterministic create recovery, bounded retries | UNIT / INTEGRATION_MOCKED |
 | HubSpot setup | Read and disposable associated note verified | LIVE_PROVIDER, passed |
@@ -38,9 +38,9 @@ This report records observed results, not predicted outcomes. Technical implemen
 | Event retention | 30-day event-only history/max 100 per hour; four local tests; actual hourly cron pruned zero old events | Local and LIVE_PROVIDER passed; durable receipts retained |
 | Production discovery | Actual cron admitted five once; next cron found same five, claimed/started zero; ledger/count remained five, attempts1 | LIVE_PROVIDER, passed including repeat polling |
 | CI | Phase 5–6 PR/push runs 37873027894 / 37873044328 and master CI 37873158000 passed, including coverage gate | Passed |
-| CD | Release quality passed; deploy job deliberately skipped | Pending scoped credential authorization |
-| Real human approval | Premium…9928 Approve and password…3588 Reject are posted/awaiting, reserved for owner | Pending; simulators do not qualify |
-| Application inbox | One actual application email accepted in simulated technical case | Not confirmed; setup inbox proof does not qualify |
+| CD | Actual GitHub run37874057267 attempt2: quality, migrations, deployment and health passed | LIVE_PROVIDER, passed; prior skips do not count |
+| Real human approval | Owner confirmed personal mobile Slack actions; Premium…9928 COMPLETED, password…3588 REJECTED/zero sends; readback corroborated | LIVE_HUMAN_CLICK, owner testimony plus ledger |
+| Application inbox | Owner identified billing…9587 email and separately confirmed NEW Premium…9928 email after physical approval | INBOX_CONFIRMED, owner testimony, not mailbox API telemetry |
 
 The read-only preflight repeated at01:03:41Z passed all attempted authentication/read checks and Free-plan checks. Its overall `incomplete` result reflects intentionally unrun disposable-write and setup-inference probes; the original phase0 smoke evidence remains separate. It did not send another email or regenerate application proposals.
 
@@ -49,8 +49,8 @@ Manual inspection of these four actual drafts found corresponding-policy suggest
 ## Deployment
 
 - Verified URL: https://ticketpilot-api.herrerogusano-ticketpilot.workers.dev
-- Current verified version: `e3c1a649-71b0-41c9-8196-3fb0b883843f`; Workflow version`39236226-5a25-4d15-8130-d9e4a6f5000a`.
-- Local protected Wrangler bootstrap, not verified GitHub CD.
+- Current CD-verified version: `c9e8c65c-aae1-428e-804a-5e1a993e8ff5`, source master`82fe92c`, uploaded by GitHub run37874057267 attempt2. Local protected bootstrap versions remain historical evidence.
+- Actual deploy job and health verification succeeded; Worker startup25ms is startup time, not request CPU or Workflow step CPU.
 - D1, AI, Workflow and `*/5 * * * *` scheduled bindings were returned by actual deployment. The scheduled configuration was also read back from the authenticated API.
 - Secured phase-3 decision handling is deployed; actual unsigned POST returned401. Health returned200/configuredtrue. The transient protected plaintext deployment file was removed and its absence verified.
 - Observed health request: 2 ms CPU / 3 ms wall time. This is only that health invocation, not processing CPU evidence.
@@ -64,11 +64,11 @@ Manual inspection of these four actual drafts found corresponding-policy suggest
 - Final local gates: 119 tests across 19 files, 79 selected integration tests across 11 files, typecheck/lint/diff-check passed. The 80% per-file branch threshold passed locally and in GitHub. PR5 merged as master `089b6e4`; master CI37873158000 and release37873158017 quality succeeded. Its deploy job was skipped, and repository secret names remained empty with deployment switch false. This is explicitly not verified CD.
 - Phase4 source review fixed same-day ISO/SQLite cutoff comparisons, per-attempt cached429 reads, immutable retries/window limits, candidate-ID direct note verification and early approval-after-post continuation. Negative cases and real local Workflow executions are tested. Splitting a combined fixture removed test-only workerd cancellations; deliberate timeout diagnostic remains in its negative test with successful suite exit.
 
-## External blockers and human gates
+## Final external and human gate evidence
 
-The separate GitHub Actions deployment token has not been created. The prepared Cloudflare grant is limited to the existing `ticketpilot-api` Worker editor plus account D1 Write and Account Settings Read, with 30-day expiry. Await the operator's explicit confirmation before creating access. Capture it through the protected terminal, never chat; save only as the private repository's encrypted Actions secret, then enable and verify an actual deploy job. Do not substitute broad local OAuth or claim the skipped job deployed anything.
+The owner authorized CD. The dedicated token was created and transferred directly from the authenticated Cloudflare UI into the private repository's encrypted Actions secret without printing or committing its value; no broad local OAuth was uploaded. The initial individual-Worker editor grant failed on the exact Workflows API with10000 while D1 migrations passed. Deployment was disabled during diagnosis. Official [Workflow update permissions](https://developers.cloudflare.com/api/resources/workflows/methods/update/) require Workers Scripts Write. The owner explicitly authorized that additional account-level permission, retaining November9 expiry, D1 Write and Account Settings Read, with no billing grant. Token scope now allows other Workers in this same account; do not describe it as Worker-only. The exact failed job was rerun after this correction and passed.
 
-Slack HTTP interactivity is registered and all five scenario messages are posted. The owner should physically Approve premium activation…9928 and Reject password reset…3588 in the demo channel, then verify the email whose subject contains the premium ticket ID. See [DEMO.md](../docs/DEMO.md) for exact IDs and protected Windows commands. Run `npm run verify:e2e` afterwards; operator-only `--record-human-evidence` requires an interactive terminal and exact physical-click/particular-receipt confirmations. Current actual verifier reports `PENDING_HUMAN_LIVE_ACCEPTANCE`, never infers inbox delivery from receipts, and exits nonzero while pending.
+Slack HTTP interactivity is registered. The owner completed the reserved physical actions from mobile, and real ledger reads showed Premium…9928 COMPLETED with one Resend attempt/receipt…a8b1 and note…1399; password…3588 REJECTED with zero attempts/receipts. The owner separately confirmed the particular Premium message arrived. Actual verify:e2e returned LIVE_ACCEPTANCE_PASSED with source owner_chat_confirmation and directly verified unique note associations for both approved cases. The ignored local testimony is bound to ticket, receipt and decision time; its source is not falsely labeled interactive-terminal or independent mailbox telemetry. Five new negative/provenance tests cover the checker. Do not replay completed emails to reproduce the demo.
 
 Read-only smoke and exact in-memory configured-secret/recipient audit passed after real deployment (82 unignored/tracked files checked). This audit is not a guarantee about unknown historical credentials. The current secret-value configuration remains outside this synced repository; transient deployment plaintext was deleted and absence checked.
 

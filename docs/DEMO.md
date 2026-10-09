@@ -24,7 +24,9 @@ In [the demo Slack channel](https://app.slack.com/client/T0C7S09984V/C0C7X4Y182E
 
 The review deadline is48hours from the posted message, not from when this document is opened. If the proposal is expired, do not reset or replay an accepted/ambiguous operation; inspect its durable state first.
 
-Run `npm run verify:e2e` with protected demo credentials after the clicks. Missing human/inbox evidence intentionally returns a pending report and nonzero exit. Only after personally clicking and checking that specific message, run `npm run verify:e2e -- --record-human-evidence` in an interactive terminal; enter the exact ticket/receipt confirmations requested. Operator attestation is labeled as such and never fabricated by the agent.
+These reserved actions have now been completed by the owner on mobile, and the NEW Premium email was confirmed received. Actual verification passed with explicit owner_chat_confirmation bound to the directly verified ticket/receipt/decision timestamp. The earlier billing inbox confirmation was separately recorded and did not turn its simulator approval into a human click. Do not click/replay completed operations to trigger additional emails.
+
+Run `npm run verify:e2e` with protected credentials to recheck evidence. Missing human/inbox testimony returns a pending report and nonzero exit. For a genuinely new authorized acceptance, the operator may use `--record-human-evidence` only after personally clicking/checking the particular email. Explicit owner confirmation in chat may also be recorded with its actual source, never falsely described as interactive-terminal or independent inbox telemetry.
 
 For this Windows installation, the existing protected launcher loads DPAPI credentials without printing them:
 

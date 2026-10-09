@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
-import { z } from "zod";
+import { attestationSchema, matchOwnerEvidence } from "./human-evidence";
 import {
   assertHealth,
   configured,
@@ -13,16 +13,6 @@ import {
   verifyNoteAssociation,
   workerUrl,
 } from "./live-inspection";
-
-const attestationSchema = z.object({
-  source: z.literal("interactive_owner_attestation"),
-  ticket_id: z.string().regex(/^\d{1,20}$/),
-  resend_message_id: z.string().min(1).max(100),
-  decision_at: z.string(),
-  recorded_at: z.iso.datetime(),
-  physical_click_confirmed: z.literal(true),
-  particular_message_inbox_confirmed: z.literal(true),
-});
 
 async function main(): Promise<void> {
   requireDemo();
@@ -111,18 +101,13 @@ async function main(): Promise<void> {
       input.close();
     }
   }
-  let human = false;
+  let humanSource: "interactive_owner_attestation" | "owner_chat_confirmation" | null = null;
   try {
-    const record = attestationSchema.parse(JSON.parse(await readFile(path, "utf8")));
-    human = approvedVerified.some(
-      (row) =>
-        row.hubspot_ticket_id === record.ticket_id &&
-        row.resend_message_id === record.resend_message_id &&
-        row.decision_at === record.decision_at,
-    );
+    humanSource = matchOwnerEvidence(JSON.parse(await readFile(path, "utf8")), approvedVerified);
   } catch {
     /* Missing or invalid operator evidence is pending, never inferred. */
   }
+  const human = humanSource !== null;
   const report = {
     generated_at: new Date().toISOString(),
     evidence_label: "LIVE_PROVIDER",
@@ -131,7 +116,7 @@ async function main(): Promise<void> {
     rejected_without_email: rejected.map((row) => row.hubspot_ticket_id),
     unknown_manual_no_email: manualSafe,
     technical_scenarios_passed: technicalPassed,
-    human_evidence_source: human ? "interactive_owner_attestation" : null,
+    human_evidence_source: humanSource,
     human_click_and_inbox_confirmed: human,
     status: !technicalPassed
       ? "PENDING_LIVE_SCENARIOS"
