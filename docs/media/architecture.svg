@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650" role="img" aria-labelledby="title desc">
+  <title id="title">TicketPilot: AI drafts. A human decides.</title>
+  <desc id="desc">HubSpot synthetic tickets enter a Cloudflare Workflow through five-minute polling and D1 admission. Notion policies ground Workers AI drafts. Slack allows editing and explicit approval of the latest revision. Only approved supported replies reach Resend and the HubSpot audit. Rejection, expiry and insufficient evidence send nothing. D1 retains revisions and receipts.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0 8 4 0 8" fill="none" stroke="#7d91ac" stroke-width="1.5"/></marker>
+    <style>
+      text{font-family:Segoe UI,Arial,sans-serif}.title{font-size:34px;font-weight:700;fill:#eef3fa}.label{font-size:22px;font-weight:650;fill:#eef3fa}.small{font-size:16px;fill:#a9b9cf}.eyebrow{font-size:13px;letter-spacing:2px;fill:#79e4bc}.node{fill:#15253b;stroke:#30445e;stroke-width:1.5}.line{fill:none;stroke:#7d91ac;stroke-width:2;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1200" height="650" rx="24" fill="#0b1728"/>
+  <text x="44" y="48" class="eyebrow">TICKETPILOT / HUMAN-IN-THE-LOOP SUPPORT</text>
+  <text x="44" y="96" class="title">AI drafts. A human decides.</text>
+  <text x="44" y="130" class="small">One fixed workflow. Real integrations. Explicit boundaries around every send.</text>
+  <rect x="44" y="185" width="240" height="114" rx="14" class="node"/>
+  <text x="64" y="220" class="label">HubSpot</text><text x="64" y="248" class="small">New [TP-DEMO] tickets</text><text x="64" y="275" class="small">After the launch cutoff</text>
+  <path d="M284 242H346" class="line"/><text x="293" y="222" class="small">5 min</text>
+  <rect x="354" y="185" width="285" height="114" rx="14" class="node"/>
+  <text x="374" y="220" class="label">Cloudflare Workflow</text><text x="374" y="248" class="small">D1 admission + durable steps</text><text x="374" y="275" class="small">Notion evidence → Workers AI</text>
+  <path d="M639 242H703" class="line"/>
+  <rect x="711" y="180" width="445" height="124" rx="14" fill="#163c3b" stroke="#79e4bc" stroke-width="2"/>
+  <text x="733" y="217" class="label">Slack · human review</text><text x="733" y="247" class="small">Edit response → Save revision → Approve</text><text x="733" y="277" fill="#79e4bc" font-size="16">Saving is not approval. Old versions cannot send.</text>
+  <path d="M934 305V369" class="line"/><text x="951" y="340" class="small">Signed, allowlisted approval</text>
+  <rect x="711" y="377" width="445" height="113" rx="14" class="node"/>
+  <text x="733" y="413" class="label">Resend → HubSpot audit</text><text x="733" y="442" class="small">Exact approved text → fixed test recipient only</text><text x="733" y="470" class="small">Provider receipt + one associated internal note</text>
+  <path d="M497 300V366" class="line"/>
+  <rect x="354" y="377" width="285" height="113" rx="14" class="node"/>
+  <text x="374" y="413" class="label">D1 · durable record</text><text x="374" y="442" class="small">Original + human revisions</text><text x="374" y="470" class="small">Decisions, payloads, receipts</text>
+  <path d="M711 434H649" class="line"/>
+  <rect x="44" y="377" width="240" height="113" rx="14" fill="#362d29" stroke="#e5ad7e"/>
+  <text x="64" y="413" fill="#f1c6a2" font-size="22" font-weight="650">No send</text><text x="64" y="442" class="small">Reject · expiry</text><text x="64" y="470" class="small">Insufficient evidence</text>
+  <path d="M711 285H681V345H164V367" class="line"/>
+  <line x1="44" y1="548" x2="1156" y2="548" stroke="#30445e"/>
+  <text x="44" y="581" class="small">Synthetic-only demo · no autonomous sending · no arbitrary recipients · no blind retry after an unknown send</text>
+  <text x="44" y="613" fill="#79e4bc" font-size="15">Provider acceptance ≠ inbox delivery. Human confirmation is recorded separately.</text>
+</svg>
