@@ -2,13 +2,17 @@
 
 ## Slack editing extension — 2026-10-09
 
-Status: PENDING_HUMAN_LIVE_ACCEPTANCE for the new editing scenario. The owner authorized signed Slack response editing with superseded-version protection and HubSpot/D1 audit history. Implementation and independent local gates passed; publication evidence is recorded on the feature PR and its actual master-push Actions release. Its new live human/modal/inbox gate is not covered by the earlier MVP acceptance. Original-provider and inbox evidence below remains historical and must not be relabeled as an edited delivery.
+Status: DONE, including the separately verified Slack editing gate. PR9 merged as `1205d22`; master CI37931292838 and Release demo37931292944 passed remote migration0007, deploy and health. Worker version `fdfaa9e5-efb6-465a-9215-b01b59ed1226` was directly correlated with that release. Final provider/human acceptance is recorded in [PR9's evidence comment](https://github.com/herrerogusano/TicketPilot/pull/9#issuecomment-6081208702). Earlier pending checkpoints below are historical and superseded, not new work to replay.
+
+The owner confirmed canceling the first modal without saving preserved the original, then editing both internal summary and response, approving the refreshed revision2 and receiving that particular email with the new text. Actual read-only `verify:edit` passed `EDITED_PROVIDER_EVIDENCE_PASSED`: latest exact outbound text/payload hash, original/edit history and one unique directly associated HubSpot note. Metadata-only D1 readback: ticket436854994147, COMPLETED/APPROVE, revision2, two snapshots, summary_changed1, resend_attempts1, receipt`01a120b2-c000-7d35-9942-ad1a2b4c7e52`, note526142307576, CRM auditCOMPLETED, decision`2026-10-09T12:45:44.256Z` by the configured allowlisted approver. Evidence is LIVE_PROVIDER plus `owner_chat_confirmation` for LIVE_HUMAN_CLICK/INBOX_CONFIRMED, not independent mailbox telemetry. No simulator approval, resend or new provider write was used for verification.
 
 Supervisor gates: `generate:types`, `typecheck`, `lint`, `test:coverage` passed; 149/149 tests in 21 files, domain/adapter branch coverage460/538=85.50%, minimum80% per covered file. The real local Workflow regression loads the original proposal, accepts a subsequent human revision and sends only the latest explicitly approved draft; signed-route tests cover stale callbacks/forms, wrong identities, concurrent edit/approve, delayed/failed Slack refresh and retry. Local D1 tests cover append-only history, expiry/post-decision mutation and the three-edit cap. Audit tests cover all versions and exact sent text, one-time HTML escaping and size limits. The local timeout-race fixture emits a Miniflare WorkflowTimeoutError diagnostic while the suite exits0; this is local test-runtime output, not a live failure. Exact configured-secret/recipient audit passed across89 project files. No new live edit or inbox acceptance is inferred from these tests.
 
 The bounded flow preserves the original AI snapshot and up to three human edits, requires an internal change reason, saves without approving, blocks stale actions/forms and locks editing after a decision/reservation. Only the latest explicitly approved text may become the immutable email payload. Append-only D1 revision history is independent of event retention. The single final HubSpot note for an accepted email includes all versions, reasons, actors/times, approved/sent revision/hash and exact sent text, with HTML escaping and checked size limits. Rejected/expired edits stay in D1 without inventing email acceptance or a delivery note.
 
-Resume the new live gate with one synthetic supported ticket: owner selects Edit response, changes text/reason, saves, approves the refreshed revision and confirms that specific message arrived. Then run protected `npm run verify:edit -- --ticket <ID>` for read-only latest-payload/hash and directly associated unique-note verification. A local route simulator or this verifier alone does not attest the owner's physical action or inbox. Do not reopen completed tickets, replay accepted/ambiguous sends or rerun all seeds.
+Recheck the completed edited-delivery evidence using protected `npm run verify:edit -- --ticket 436854994147`. This is read-only; it does not attest a physical action or inbox by itself. Do not reopen completed tickets, replay accepted/ambiguous sends or rerun all seeds. The owner's particular inbox confirmation above closes that separate human gate.
+
+Presentation assets added on2026-10-09 are labeled in [media provenance](../docs/media/MEDIA.md): an actual existing synthetic Slack manual-review screenshot, a code-native architecture diagram and a 24-second illustrative animation (GIF/MP4). They did not create a new ticket, inference or send, and do not replace the live evidence above.
 
 The original MVP report records observed results, not predicted outcomes: `DONE`. The owner physically approved Premium and rejected password reset in Slack, confirmed the particular Premium email arrived, and authorized the extra Cloudflare permission required for actual GitHub CD. Historical pending MVP observations below are superseded by that gate record; the new Slack editing extension has its own acceptance section above.
 
@@ -26,7 +30,7 @@ The subsequent owner-requested presentation change removes appended internal met
 - `LIVE_HUMAN_CLICK`: a real allowlisted human physically selects a Slack button; not a signed simulator.
 - `INBOX_CONFIRMED`: the owner confirms the application's particular accepted message arrived; not an earlier setup email.
 
-## Current observations
+## Historical original-MVP observations
 
 | Gate | Observed evidence | Result |
 | --- | --- | --- |

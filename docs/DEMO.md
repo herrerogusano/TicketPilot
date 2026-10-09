@@ -1,69 +1,56 @@
-# Demo
+# Demo walkthrough
 
-This walkthrough uses fictional HubSpot tickets, fictional Notion support policies, one Slack reviewer and the Resend account owner's test mailbox. No customer contacts are mail recipients.
+TicketPilot demonstrates a small support workflow using fictional HubSpot tickets, five fictional Notion policies, one Slack reviewer, and the Resend account owner's test mailbox. It never emails a ticket contact.
 
-## Before presenting
+![TicketPilot architecture](media/architecture.svg)
 
-Check `artifacts/ACCEPTANCE.md` first. Do not present an unfinished phase, mock, setup email or skipped deployment as a working application. Confirm that the secured Worker, final policy seed, scenario Slack messages and verification CLI have actual evidence.
+*Architecture overview. See [media provenance](media/MEDIA.md) for context.*
 
-Use the recorded seed manifest rather than creating another set of tickets. The five cases are premium activation, duplicate charge, CSV export, expired password-reset link and an unrelated office-parking question. Only the tagged tickets created after the immutable launch cutoff may be processed.
+![Animated TicketPilot walkthrough](media/walkthrough.gif)
 
-## Edit before approving
+*Illustrative animation, not a provider-dashboard screencast or evidence of a live action.*
 
-Use a new synthetic supported ticket, never reopen a completed/rejected/ambiguous send. In Slack select **Edit response**, change the proposed customer reply and enter an internal change reason (and update the internal summary if the proposed solution changed). Save, then review the refreshed revision before explicitly choosing **Approve**. Saving alone sends nothing. Canceling leaves the proposal unchanged. This bounded demo permits three saved human edits per ticket, with reply up to1,500characters, internal summary240 and reason200.
+[Watch or download the 24-second MP4](media/walkthrough.mp4). The animation compresses timing; actual ticket intake uses the five-minute poll.
 
-For the safety demonstration, save a second edit before approving: only that latest revision may be approved or sent. Old buttons and a form opened against the previous revision must fail closed. After approval, editing is locked. In the owner mailbox compare the body with the latest approved text; the subject retains the ticket reason. In HubSpot inspect the associated audit note for the original proposal, change reasons/editor/timestamps, approved revision/hash, exact sent text and Resend receipt. D1 retains the revision history even when transient events expire.
+## Walkthrough
 
-An edited response is human-authored, not a new AI inference or automatic policy validation. Check any changed solution against the linked policies before approving; the original classification/evidence are retained for provenance, not presented as fresh model validation of the human text.
+The five seeded examples cover premium activation, duplicate charge, CSV export, an expired password-reset link, and an unrelated office-parking question. Only `[TP-DEMO]` tickets created after the configured launch cutoff are eligible. Check [acceptance evidence](../artifacts/ACCEPTANCE.md) before presenting; it identifies what was live, simulated, or owner-confirmed.
 
-Do not label local signed callbacks or provider request doubles as a physical Slack modal interaction or inbox receipt. A real human must save the modal, approve the refreshed card and confirm that particular edited email for the new live acceptance claim.
+For a supported proposal, show the linked Notion evidence, bounded draft, and category/priority in Slack. The reviewer may:
 
-After the edited ticket completes, run `npm run verify:edit -- --ticket <ID>` with protected configured demo credentials and Wrangler authentication. This read-only checker compares the stored outbound body/hash with the latest revision and directly checks the unique associated HubSpot note for original/edit history, provenance and sent-version evidence. Its LIVE_PROVIDER result does not attest a physical click or inbox arrival; record those separately from the owner's actual confirmation. `npm run verify:e2e` remains the original five-scenario verifier and is not proof of the edit feature.
+1. Choose **Edit response** and change the customer reply and, if needed, the internal summary.
+2. Enter an internal change reason and save. Saving creates a new audited revision; it neither approves nor sends. Canceling without saving leaves the proposal unchanged.
+3. Review the refreshed Slack card, then explicitly choose **Approve** for that latest revision. Only the latest approved revision may be sent. Stale buttons or forms fail closed; after a decision or send reservation, editing is locked.
 
-## Three scenarios
+The edit controls allow up to three saved edits, with a reply up to 1,500 characters, summary up to 240, and reason up to 200. A human edit is not a new model inference or automatic policy validation. The reviewer should check changed solutions against the cited policies. Editing cannot make an unsupported proposal sendable.
 
-1. **Supported / approve:** Open the duplicate-charge or premium-activation synthetic ticket in HubSpot. Read its proposed Slack reply and linked Notion evidence. The allowlisted human clicks **Approve** once. Verify a durable decision, a provider acceptance ID and one associated HubSpot audit note. Ask the owner to confirm that specific email arrived in the inbox; only then claim delivery.
-2. **Supported / reject:** Open a different supported seed case. The same human clicks **Reject**. Verify the persisted terminal rejection and zero email requests. A repeat click must not replace the first decision or send a message.
-3. **Unknown policy:** Open the office-parking case. Relevant support evidence should be absent: show the manual-review warning and lack of an Approve button. No email is sent. A fabricated or simulated approve payload cannot override that evidence restriction.
+On approval, the outbound email body is exactly the approved reply. The subject includes the sanitized ticket reason, demo marker, and ticket ID. Internal summary, category, priority, and policy metadata are not appended to the email. The associated HubSpot audit note records the proposal and edit history, approved revision, sent text, and provider receipt. D1 retains revision history after transient events expire.
 
-Allow for the five-minute poll interval and provider timing. The 48-hour decision deadline is not a reason to leave a Codex session running merely waiting for a human.
+For a rejection, verify the durable first decision and zero send attempts. For insufficient policy evidence, show the manual-review state and absence of an Approve action. Neither a repeated callback nor a stale Slack action can replace a first decision or cause another send.
 
-For newly reserved emails, inspect the subject for the original ticket reason (without the `[TP-DEMO]` intake tag), alongside the demo marker and ticket ID. The body must match the approved Slack draft exactly, with no appended category, priority or internal summary. Previously reserved/delivered messages retain their original immutable format; do not resend them to demonstrate the new presentation.
+## Accepted live edit example
 
-## Current operator acceptance
+The edit flow has completed live acceptance on synthetic ticket `436854994147`. The owner first canceled the Slack edit modal without saving and confirmed that the original proposal remained unchanged. The owner then changed the internal summary and customer reply, saved the edit, reviewed the refreshed card, and physically approved revision 2 in Slack. The workflow completed with one send attempt, and the owner confirmed receiving the email with the exact edited text.
 
-The existing demonstration has already exercised real providers using clearly labeled signed test callbacks: duplicate charge (`436649189587`) is completed with one accepted email and one verified note; CSV export (`437259884759`) is rejected with zero email attempts. The unknown parking case (`437245230283`) is manual-only. Repeated callbacks did not duplicate decisions or sends. These are **not** human clicks or inbox proof.
+`npm run verify:edit -- --ticket 436854994147` passed against the actual stored payload hash and revision history and the unique associated HubSpot note. That note is `526142307576`; the Resend receipt is `01a120b2-c000-7d35-9942-ad1a2b4c7e52`; the decision timestamp is `2026-10-09T12:45:44.256Z`. The inbox evidence is labeled `owner_chat_confirmation` and bound to that ticket, receipt, and decision time. It is owner testimony, not independent mailbox telemetry. The verifier itself confirms provider state and the associated note; it cannot attest who clicked in Slack or whether the message appeared in a mailbox.
 
-In [the demo Slack channel](https://app.slack.com/client/T0C7S09984V/C0C7X4Y182E), the owner physically clicked **Approve** on premium activation (`437231559928`) and **Reject** on password reset (`436737423588`). Approval sent one real demo email to the configured owner only, and the particular mailbox message whose subject contains `Ticket 437231559928` was confirmed received. Current immutable English-input drafts are in Spanish, an explicitly recorded limitation.
+The associated note is the best place to inspect original-versus-edited text, change reason, editor and timestamps, approved revision/hash, exact sent text, and receipt. The Slack message is in the [demo channel](https://app.slack.com/client/T0C7S09984V/C0C7X4Y182E). Do not click or replay a completed operation to generate another email.
 
-The review deadline is48hours from the posted message, not from when this document is opened. If the proposal is expired, do not reset or replay an accepted/ambiguous operation; inspect its durable state first.
+## Other accepted scenarios
 
-These reserved actions have now been completed by the owner on mobile, and the NEW Premium email was confirmed received. Actual verification passed with explicit owner_chat_confirmation bound to the directly verified ticket/receipt/decision timestamp. The earlier billing inbox confirmation was separately recorded and did not turn its simulator approval into a human click. Do not click/replay completed operations to trigger additional emails.
+Recorded provider-backed scenarios include a supported approval with one accepted email and verified HubSpot note, a rejection with zero sends, and an insufficient-evidence manual case with no send. The owner also physically approved Premium and rejected a password-reset proposal in Slack; the particular approved Premium email was confirmed received. These scenarios are described in [the acceptance report](../artifacts/ACCEPTANCE.md). A signed simulator callback is integration evidence, not a physical Slack click. A Resend success response means provider accepted, not inbox delivered.
 
-Run `npm run verify:e2e` with protected credentials to recheck evidence. Missing human/inbox testimony returns a pending report and nonzero exit. For a genuinely new authorized acceptance, the operator may use `--record-human-evidence` only after personally clicking/checking the particular email. Explicit owner confirmation in chat may also be recorded with its actual source, never falsely described as interactive-terminal or independent inbox telemetry.
+Current immutable English-input drafts are in Spanish. This is a recorded limitation, not a measured language-quality guarantee.
 
-For this Windows installation, the existing protected launcher loads DPAPI credentials without printing them:
+## Rechecking evidence
 
-```powershell
-& 'C:\Users\herre\Documents\Codex\2026-10-09\nu\work\launch-ticketpilot.ps1' -Task 'verify:e2e'
-# Owner only, after the physical click and inbox check:
-& 'C:\Users\herre\Documents\Codex\2026-10-09\nu\work\launch-ticketpilot.ps1' -Task 'verify:e2e' -TaskArguments @('--record-human-evidence')
+With protected demo credentials and Wrangler authentication configured, run:
+
+```sh
+npm run verify:edit -- --ticket 436854994147
+npm run verify:e2e
 ```
 
-## What to show
+`verify:edit` checks the persisted send payload against its revision and directly checks the unique associated HubSpot note. `verify:e2e` checks the five original scenarios and their separately recorded human/inbox evidence; it is not a substitute for `verify:edit`. Missing evidence produces a pending report and nonzero exit. An owner may record human evidence only after actually performing the Slack action and checking the particular email. Do not reset quotas, delete seed manifests, restart a completed sending Workflow, or replay an accepted or ambiguous send to prepare a presentation.
 
-- HubSpot: a `[TP-DEMO]` ticket and its final internal audit note, not a claimed outbound CRM email.
-- Notion: the actual fictitious policy page cited by the proposal.
-- Slack: category, priority, bounded draft, citations and permitted buttons; later the recorded first decision.
-- Cloudflare: sanitized Workflow status and D1 state counts; hide secrets and raw payloads.
-- Mailbox: the one message corresponding to the accepted provider ID, with the recipient address cropped or masked in screenshots.
-
-Optional screenshot checklist: ticket, evidence page, Slack review, terminal state, associated audit note and inbox message. Screenshots are presentation assets, not replacements for API readback. During implementation, browser work stays hidden unless the operator must act.
-
-## Evidence language
-
-Say “local integration test” for controlled mocks, “provider accepted” for a Resend success response, and “inbox confirmed” only after human confirmation. Signed test callbacks do not qualify as human approval. Record rejected and insufficient-evidence cases as **no send**, not failed delivery.
-
-## Reproduction safeguards
-
-Do not delete seed manifests or reset the daily quota to force another presentation. Do not restart a completed sending Workflow. Use the operational reconciliation flow for an audit failure or uncertain provider outcome. See [OPERATIONS.md](OPERATIONS.md) and the acceptance report for validated commands and remaining gates.
+For a clean demo, show the HubSpot synthetic ticket and audit note, the cited Notion policy, the Slack review and revision, and sanitized Workflow/D1 state. If showing a mailbox, mask the recipient address. See [OPERATIONS.md](OPERATIONS.md) for reconciliation and safe operation.

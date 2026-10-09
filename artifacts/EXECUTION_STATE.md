@@ -1,6 +1,14 @@
 # TicketPilot execution checkpoint
 
-Status: PENDING_HUMAN_LIVE_ACCEPTANCE for Slack editing; technical local gates pass, publication/new live scenario next. Original MVP phases 0–6 remain DONE with historical provider/human/inbox/CD evidence. New revision/modal/inbox acceptance is separate and not yet claimed. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by later entries.
+Status: DONE for MVP and Slack editing. Actual provider readback plus owner confirmation closed the edited-delivery gate; see ACCEPTANCE and PR9/comment6081208702. Portfolio documentation/media packaging is the current work item, without application or provider-state changes. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by this entry.
+
+## Portfolio presentation — 2026-10-09
+
+- Owner requested a stronger project description, README and screenshots/video. Branch docs/portfolio-presentation from clean master1205d22. One bounded Luna/high worker updated README/DEMO; supervisor owns visual assets, review, acceptance checkpoint and publication.
+- GitHub description updated and read back; visibility remains PRIVATE. English README explains business problem, process, safe editing, engineering choices, exact scope and evidence boundaries. Corrected obsolete pending human-edit claims against real completed acceptance.
+- Media: original architecture SVG; actual existing synthetic Slack manual-review screenshot with no contact panel/credentials/full email/customer content; illustrative six-scene24-second GIF/MP4 and static poster, with persistent synthetic/not-live-recording label and reproducible optional renderer. No product frontend, new infrastructure, extra ticket/inference/approval/email or paid service.
+- Temporary display/system wake helper PID96132/session52820; no power-plan changes. Release and verify termination before final response. This replaces older active-helper entries, which are historical.
+- Supervisor checks: SVG, screenshot and illustrated scenes visually reviewed; GIF48frames/24seconds and MP4 H.264288frames/24seconds decoded and checked; optional renderer syntax valid; local Markdown link/assets check25targets passes, lint passes and configured-secret/recipient audit96files passes. No runtime source/dependency/config changes. Next: reviewed docs commit/PR, existing CI/CD publication and final wake cleanup. Record merged SHA/run/version outcomes in the PR rather than generating a second docs-only release loop.
 
 ## Coordination
 
