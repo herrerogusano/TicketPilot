@@ -7,8 +7,8 @@ import { hashProposal } from "../src/workflows/ticket-workflow";
 
 const day = "2099-01-03";
 const date = new Date(`${day}T12:00:00.000Z`);
-const firstId = 8_200;
-const lastId = 8_299;
+let firstId = 8_200_000_000_000 + (Date.now() % 100_000_000);
+let lastId = firstId + 99;
 
 async function insertTicket(id: number, state = "PROCESSING"): Promise<void> {
   await env.DB.prepare(`INSERT INTO tickets (
@@ -39,6 +39,8 @@ const proposal: TicketProposal = {
 
 describe("Phase 2 D1 proposal persistence and atomic AI budgets", () => {
   beforeEach(async () => {
+    firstId += 1_000;
+    lastId = firstId + 99;
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     await env.DB.prepare("DELETE FROM events WHERE ticket_id BETWEEN ? AND ?")
       .bind(String(firstId), String(lastId))
@@ -160,6 +162,64 @@ describe("Phase 2 D1 proposal persistence and atomic AI budgets", () => {
       .first<{ event_type: string; details_redacted_json: string }>();
     expect(event?.event_type).toBe("PROPOSAL_PERSISTED");
     expect(event?.details_redacted_json).not.toContain(proposal.draft_reply);
+    const eventCount = await env.DB.prepare(
+      "SELECT COUNT(*) AS count FROM events WHERE ticket_id = ? AND event_type = 'PROPOSAL_PERSISTED'",
+    )
+      .bind(String(firstId))
+      .first<{ count: number }>();
+    expect(eventCount?.count).toBe(1);
+  });
+
+  it("captures an old-worker proposal write into immutable revision 1 after migration", async () => {
+    await insertTicket(firstId);
+    const evidence = [
+      {
+        key: "billing-double-charge" as const,
+        title: "Duplicate billing",
+        url: "https://www.notion.so/policy",
+        contentHash: "a".repeat(64),
+      },
+    ];
+    const hash = await hashProposal({
+      ticketId: String(firstId),
+      revision: 1,
+      proposal,
+      evidence,
+      promptVersion: "ticketpilot-v1",
+    });
+    // Simulate an already-running Worker version that does not know about proposal_revisions.
+    await env.DB.prepare(`UPDATE tickets SET category = ?, priority = ?, evidence_status = ?,
+        proposal_summary = ?, draft_reply = ?, policy_keys_json = ?, proposal_rationale = ?,
+        policy_evidence_json = ?, proposal_hash = ?, prompt_version = ?, state = 'AWAITING_APPROVAL'
+      WHERE hubspot_ticket_id = ? AND state = 'PROCESSING' AND proposal_hash IS NULL`)
+      .bind(
+        proposal.category,
+        proposal.priority,
+        proposal.evidence_status,
+        proposal.summary,
+        proposal.draft_reply,
+        JSON.stringify(proposal.cited_policy_keys),
+        proposal.rationale,
+        JSON.stringify(evidence),
+        hash,
+        "ticketpilot-v1",
+        String(firstId),
+      )
+      .run();
+    const history = await new TicketRepository(env.DB).getProposalRevisionHistory(String(firstId));
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      revision: 1,
+      proposal_hash: hash,
+      edit_reason: null,
+      edited_by: null,
+    });
+    expect(JSON.parse(history[0]?.proposal_json ?? "{}")).toMatchObject({
+      draft_reply: proposal.draft_reply,
+      summary: proposal.summary,
+      proposalHash: hash,
+      revision: 1,
+    });
   });
 
   it("persists identical proposals for distinct tickets without event or hash collisions", async () => {

@@ -21,7 +21,9 @@ const definitiveSlackRejections = new Set([
 export const SLACK_ACTION_IDS = {
   approve: "ticketpilot_approve",
   reject: "ticketpilot_reject",
+  edit: "ticketpilot_edit",
 } as const;
+export const SLACK_EDIT_MODAL_CALLBACK_ID = "ticketpilot_edit_response";
 
 const targetSchema = z
   .object({
@@ -41,7 +43,11 @@ const blockActionSchema = z
     actions: z
       .array(
         z.object({
-          action_id: z.enum([SLACK_ACTION_IDS.approve, SLACK_ACTION_IDS.reject]),
+          action_id: z.enum([
+            SLACK_ACTION_IDS.approve,
+            SLACK_ACTION_IDS.reject,
+            SLACK_ACTION_IDS.edit,
+          ]),
           value: z.string().max(512),
         }),
       )
@@ -58,6 +64,20 @@ export type SlackAction = {
   actorId: string;
   channelId: string;
   messageTs: string;
+  triggerId?: string;
+};
+
+export type SlackEditSubmission = {
+  ticketId: string;
+  proposalHash: string;
+  proposalRevision: number;
+  teamId: string;
+  actorId: string;
+  channelId: string;
+  messageTs: string;
+  draftReply: string;
+  summary: string;
+  reason: string;
 };
 
 export type SlackMessageReceipt = { channelId: string; messageTs: string };
@@ -179,7 +199,81 @@ export function parseSlackAction(rawBody: string): SlackAction | null {
     actorId: payload.user.id,
     channelId: payload.channel.id,
     messageTs: payload.message.ts,
+    ...(typeof payload.trigger_id === "string" ? { triggerId: payload.trigger_id } : {}),
   };
+}
+
+const editMetadataSchema = targetSchema
+  .extend({
+    team_id: z.string().regex(/^T[A-Z0-9]+$/),
+    channel_id: z.string().regex(/^C[A-Z0-9]+$/),
+    message_ts: z.string().regex(/^\d{1,20}\.\d{1,10}$/),
+  })
+  .strict();
+
+export function parseSlackEditSubmission(rawBody: string): SlackEditSubmission | null {
+  const values = new URLSearchParams(rawBody).getAll("payload");
+  if (values.length !== 1) return null;
+  try {
+    const raw: unknown = JSON.parse(values[0] ?? "");
+    if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+    const payload = raw as Record<string, unknown>;
+    if (payload.type !== "view_submission") return null;
+    const team =
+      typeof payload.team === "object" && payload.team !== null
+        ? (payload.team as Record<string, unknown>)
+        : {};
+    const user =
+      typeof payload.user === "object" && payload.user !== null
+        ? (payload.user as Record<string, unknown>)
+        : {};
+    const view =
+      typeof payload.view === "object" && payload.view !== null
+        ? (payload.view as Record<string, unknown>)
+        : {};
+    if (
+      view.callback_id !== SLACK_EDIT_MODAL_CALLBACK_ID ||
+      typeof view.private_metadata !== "string"
+    )
+      return null;
+    const metadata = editMetadataSchema.safeParse(JSON.parse(view.private_metadata) as unknown);
+    if (!metadata.success || typeof team.id !== "string" || typeof user.id !== "string")
+      return null;
+    const state =
+      typeof view.state === "object" && view.state !== null
+        ? (view.state as Record<string, unknown>)
+        : {};
+    const valuesByBlock =
+      typeof state.values === "object" && state.values !== null
+        ? (state.values as Record<string, unknown>)
+        : {};
+    const readInput = (block: string, action: string): string | null => {
+      const row = valuesByBlock[block];
+      if (typeof row !== "object" || row === null) return null;
+      const input = (row as Record<string, unknown>)[action];
+      if (typeof input !== "object" || input === null) return null;
+      const value = (input as Record<string, unknown>).value;
+      return typeof value === "string" ? value : value === null ? "" : null;
+    };
+    const draftReply = readInput("draft_reply_block", "draft_reply");
+    const summary = readInput("summary_block", "summary");
+    const reason = readInput("reason_block", "reason");
+    if (draftReply === null || summary === null || reason === null) return null;
+    return {
+      ticketId: metadata.data.ticket_id,
+      proposalHash: metadata.data.proposal_hash,
+      proposalRevision: metadata.data.proposal_revision,
+      teamId: team.id,
+      actorId: user.id,
+      channelId: metadata.data.channel_id,
+      messageTs: metadata.data.message_ts,
+      draftReply,
+      summary,
+      reason,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export type ReviewMessageInput = {
@@ -211,6 +305,10 @@ export function buildReviewMessage(input: ReviewMessageInput): {
     {
       type: "section",
       fields: [
+        {
+          type: "plain_text",
+          text: `Revision: ${proposal.revision} (${proposal.revision === 1 ? "AI draft" : "human edited"})`,
+        },
         { type: "plain_text", text: `Category: ${proposal.category}` },
         { type: "plain_text", text: `Priority: ${proposal.priority}` },
       ],
@@ -241,9 +339,30 @@ export function buildReviewMessage(input: ReviewMessageInput): {
       text: `Policy evidence:\n${formatEvidence(input.evidence)}`,
     },
   });
+  if (supported && proposal.revision >= 4) {
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "plain_text",
+          text: "The demo edit limit has been reached. Approve or reject this revision.",
+        },
+      ],
+    });
+  }
   blocks.push({
     type: "actions",
     elements: [
+      ...(supported && proposal.revision < 4
+        ? [
+            {
+              type: "button",
+              action_id: SLACK_ACTION_IDS.edit,
+              text: { type: "plain_text", text: "Edit response" },
+              value: target,
+            },
+          ]
+        : []),
       ...(supported
         ? [
             {
@@ -253,10 +372,13 @@ export function buildReviewMessage(input: ReviewMessageInput): {
               style: "primary",
               value: target,
               confirm: {
-                title: { type: "plain_text", text: "Approve this draft?" },
+                title: {
+                  type: "plain_text",
+                  text: `Approve response revision ${proposal.revision}?`,
+                },
                 text: {
                   type: "plain_text",
-                  text: "This authorizes sending a real demo email to the fixed owner recipient.",
+                  text: `This authorizes sending revision ${proposal.revision} as a real demo email to the fixed owner recipient.`,
                 },
                 confirm: { type: "plain_text", text: "Approve" },
                 deny: { type: "plain_text", text: "Cancel" },
@@ -340,9 +462,113 @@ export class SlackClient {
     }
   }
 
+  async openEditModal(
+    triggerId: string,
+    input: {
+      ticketId: string;
+      proposal: StoredProposal;
+      teamId: string;
+      channelId: string;
+      messageTs: string;
+    },
+  ): Promise<boolean> {
+    if (triggerId.length < 1 || triggerId.length > 256) return false;
+    const metadata = JSON.stringify({
+      ticket_id: input.ticketId,
+      proposal_hash: input.proposal.proposalHash,
+      proposal_revision: input.proposal.revision,
+      team_id: input.teamId,
+      channel_id: input.channelId,
+      message_ts: input.messageTs,
+    });
+    const blocks = [
+      {
+        type: "input",
+        block_id: "draft_reply_block",
+        label: { type: "plain_text", text: "Response text" },
+        element: {
+          type: "plain_text_input",
+          action_id: "draft_reply",
+          multiline: true,
+          max_length: 1500,
+          initial_value: input.proposal.draft_reply,
+        },
+      },
+      {
+        type: "input",
+        optional: true,
+        block_id: "summary_block",
+        label: { type: "plain_text", text: "Internal summary" },
+        element: {
+          type: "plain_text_input",
+          action_id: "summary",
+          max_length: 240,
+          initial_value: input.proposal.summary,
+        },
+      },
+      {
+        type: "input",
+        block_id: "reason_block",
+        label: { type: "plain_text", text: "Internal reason and solution changes" },
+        element: {
+          type: "plain_text_input",
+          action_id: "reason",
+          multiline: true,
+          min_length: 1,
+          max_length: 200,
+          placeholder: {
+            type: "plain_text",
+            text: "Why was this answer changed? What solution changed?",
+          },
+        },
+      },
+    ];
+    try {
+      const response = await this.call(
+        "views.open",
+        {
+          trigger_id: triggerId,
+          view: {
+            type: "modal",
+            callback_id: SLACK_EDIT_MODAL_CALLBACK_ID,
+            private_metadata: metadata,
+            title: { type: "plain_text", text: "Edit response" },
+            submit: { type: "plain_text", text: "Save revision" },
+            close: { type: "plain_text", text: "Cancel" },
+            blocks,
+          },
+        },
+        1_500,
+      );
+      const body = response.ok ? await readSlackJson(response) : null;
+      return body?.ok === true;
+    } catch {
+      return false;
+    }
+  }
+
+  async refreshReviewMessage(
+    channelId: string,
+    messageTs: string,
+    input: ReviewMessageInput,
+  ): Promise<boolean> {
+    try {
+      const response = await this.call("chat.update", {
+        channel: channelId,
+        ts: messageTs,
+        ...buildReviewMessage(input),
+      });
+      const body = response.ok ? await readSlackJson(response) : null;
+      return body?.ok === true;
+    } catch {
+      return false;
+    }
+  }
+
   private async call(
-    method: "chat.postMessage" | "chat.update",
+    method: "chat.postMessage" | "chat.update" | "views.open",
     payload: unknown,
+    timeoutMs = SLACK_POST_TIMEOUT_MS,
   ): Promise<Response> {
     try {
       return await this.fetcher(`${SLACK_API}/${method}`, {
@@ -352,7 +578,7 @@ export class SlackClient {
           "content-type": "application/json; charset=utf-8",
         },
         body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(SLACK_POST_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
       throw new SlackApiError("unknown");

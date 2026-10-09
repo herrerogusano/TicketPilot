@@ -8,6 +8,18 @@ Check `artifacts/ACCEPTANCE.md` first. Do not present an unfinished phase, mock,
 
 Use the recorded seed manifest rather than creating another set of tickets. The five cases are premium activation, duplicate charge, CSV export, expired password-reset link and an unrelated office-parking question. Only the tagged tickets created after the immutable launch cutoff may be processed.
 
+## Edit before approving
+
+Use a new synthetic supported ticket, never reopen a completed/rejected/ambiguous send. In Slack select **Edit response**, change the proposed customer reply and enter an internal change reason (and update the internal summary if the proposed solution changed). Save, then review the refreshed revision before explicitly choosing **Approve**. Saving alone sends nothing. Canceling leaves the proposal unchanged. This bounded demo permits three saved human edits per ticket, with reply up to1,500characters, internal summary240 and reason200.
+
+For the safety demonstration, save a second edit before approving: only that latest revision may be approved or sent. Old buttons and a form opened against the previous revision must fail closed. After approval, editing is locked. In the owner mailbox compare the body with the latest approved text; the subject retains the ticket reason. In HubSpot inspect the associated audit note for the original proposal, change reasons/editor/timestamps, approved revision/hash, exact sent text and Resend receipt. D1 retains the revision history even when transient events expire.
+
+An edited response is human-authored, not a new AI inference or automatic policy validation. Check any changed solution against the linked policies before approving; the original classification/evidence are retained for provenance, not presented as fresh model validation of the human text.
+
+Do not label local signed callbacks or provider request doubles as a physical Slack modal interaction or inbox receipt. A real human must save the modal, approve the refreshed card and confirm that particular edited email for the new live acceptance claim.
+
+After the edited ticket completes, run `npm run verify:edit -- --ticket <ID>` with protected configured demo credentials and Wrangler authentication. This read-only checker compares the stored outbound body/hash with the latest revision and directly checks the unique associated HubSpot note for original/edit history, provenance and sent-version evidence. Its LIVE_PROVIDER result does not attest a physical click or inbox arrival; record those separately from the owner's actual confirmation. `npm run verify:e2e` remains the original five-scenario verifier and is not proof of the edit feature.
+
 ## Three scenarios
 
 1. **Supported / approve:** Open the duplicate-charge or premium-activation synthetic ticket in HubSpot. Read its proposed Slack reply and linked Notion evidence. The allowlisted human clicks **Approve** once. Verify a durable decision, a provider acceptance ID and one associated HubSpot audit note. Ask the owner to confirm that specific email arrived in the inbox; only then claim delivery.

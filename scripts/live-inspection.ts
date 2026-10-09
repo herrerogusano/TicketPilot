@@ -45,6 +45,11 @@ export function readDemoLedger(ids: readonly string[]): Record<string, unknown>[
     FROM tickets
     WHERE hubspot_ticket_id IN (${validated.map((id) => `'${id}'`).join(",")})
     ORDER BY hubspot_ticket_id;`;
+  return readRemoteRows(sql);
+}
+
+// Callers construct SQL only from validated IDs; raw rows are never logged.
+export function readRemoteRows(sql: string): Record<string, unknown>[] {
   let output: string;
   try {
     output = execFileSync(

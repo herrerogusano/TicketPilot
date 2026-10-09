@@ -2,13 +2,17 @@ import { applyD1Migrations, env, introspectWorkflowInstance } from "cloudflare:t
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildImmutableEmailPayload, hashEmailPayload } from "../src/adapters/resend";
 import type { StoredProposal } from "../src/domain/contracts";
-import { TICKET_DECISION_EVENT_TYPE } from "../src/state/decision-events";
+import { dispatchDecisionEvent, TICKET_DECISION_EVENT_TYPE } from "../src/state/decision-events";
 import { EmailDeliveryRepository } from "../src/state/email-delivery";
 import { TicketRepository } from "../src/state/ticket-repository";
-import { reconcilePendingCrmAudits } from "../src/workflows/email-delivery";
+import {
+  isAuditHistoryWithinBudget,
+  reconcilePendingCrmAudits,
+} from "../src/workflows/email-delivery";
+import { hashProposal } from "../src/workflows/ticket-workflow";
 
-const firstId = 9_500;
-const lastId = 9_599;
+let firstId = 9_500_000_000_000 + (Date.now() % 100_000_000);
+let lastId = firstId + 99;
 const channel = "C0C7X4Y182E";
 const team = "T0C7S09984V";
 const actor = "U0C7X45H86N";
@@ -224,6 +228,8 @@ function stubProviders(options: MockOptions = {}) {
 
 describe("Phase 4 approved-only email and audit Workflow", () => {
   beforeEach(async () => {
+    firstId += 1_000;
+    lastId = firstId + 99;
     configureRuntime();
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     await env.DB.prepare("DELETE FROM events WHERE ticket_id BETWEEN ? AND ?")
@@ -232,6 +238,81 @@ describe("Phase 4 approved-only email and audit Workflow", () => {
     await env.DB.prepare("DELETE FROM tickets WHERE hubspot_ticket_id BETWEEN ? AND ?")
       .bind(String(firstId), String(lastId))
       .run();
+  });
+
+  it("accepts bounded escaped history below HubSpot's limit and fails closed on malformed or oversized audit", () => {
+    const finalHash = "d".repeat(64);
+    const acceptedHistory = Array.from({ length: 4 }, (_, index) => {
+      const revision = index + 1;
+      const draft = "&".repeat(1_500);
+      const summary = "&".repeat(240);
+      const snapshot = {
+        ...proposal,
+        summary,
+        draft_reply: draft,
+        proposalHash: revision === 4 ? finalHash : String(revision).repeat(64),
+        revision,
+      };
+      return {
+        ticket_id: "9500000000001",
+        revision,
+        proposal_hash: snapshot.proposalHash,
+        proposal_json: JSON.stringify(snapshot),
+        edit_reason: revision === 1 ? null : "&".repeat(200),
+        edited_by: revision === 1 ? null : actor,
+        created_at: new Date(Date.UTC(2026, 0, revision)).toISOString(),
+      };
+    });
+    const finalProposal = {
+      ...proposal,
+      summary: "&".repeat(240),
+      draft_reply: "&".repeat(1_500),
+      proposalHash: finalHash,
+      revision: 4,
+    };
+    expect(
+      isAuditHistoryWithinBudget(acceptedHistory, finalProposal, {
+        subject: "Synthetic subject",
+        text: finalProposal.draft_reply,
+      }),
+    ).toBe(true);
+
+    const oversizedHistory = acceptedHistory.map((entry) => {
+      const snapshot = JSON.parse(entry.proposal_json) as Record<string, unknown>;
+      const revision = entry.revision;
+      const hash = revision === 4 ? finalHash : String(revision).repeat(64);
+      return {
+        ...entry,
+        proposal_hash: hash,
+        proposal_json: JSON.stringify({
+          ...snapshot,
+          draft_reply: '"'.repeat(1_500),
+          summary: '"'.repeat(240),
+          proposalHash: hash,
+        }),
+        edit_reason: revision === 1 ? null : '"'.repeat(200),
+      };
+    });
+    const oversizedFinal = {
+      ...finalProposal,
+      draft_reply: '"'.repeat(1_500),
+      summary: '"'.repeat(240),
+    };
+    expect(
+      isAuditHistoryWithinBudget(oversizedHistory, oversizedFinal, {
+        subject: "Synthetic subject",
+        text: oversizedFinal.draft_reply,
+      }),
+    ).toBe(false);
+    expect(
+      isAuditHistoryWithinBudget(
+        acceptedHistory.map((entry, index) =>
+          index === 0 ? { ...entry, proposal_json: "{malformed" } : entry,
+        ),
+        finalProposal,
+        { subject: "Synthetic subject", text: finalProposal.draft_reply },
+      ),
+    ).toBe(false);
   });
 
   it("sends exactly once to the configured recipient, then persists and verifies the CRM audit note", async () => {
@@ -270,6 +351,190 @@ describe("Phase 4 approved-only email and audit Workflow", () => {
       expect(row?.crm_audit_candidate_note_id).toBe(row?.hubspot_note_id);
     } finally {
       await workflow.dispose();
+    }
+  });
+
+  it("sends only the latest of two human revisions and records original, reasons, hashes, exact text, and receipt in HubSpot", async () => {
+    await insertProposal(firstId);
+    await markPosted(firstId);
+    const repository = new TicketRepository(env.DB);
+    const firstEdit = {
+      ...proposal,
+      draft_reply: "First revision: confirm the charge dates before resolving.",
+      summary: "Check charge dates",
+    };
+    const firstHash = await hashProposal({
+      ticketId: String(firstId),
+      revision: 2,
+      proposal: firstEdit,
+      evidence: proposal.policyEvidence,
+      promptVersion: proposal.promptVersion,
+    });
+    expect(
+      await repository.editProposal({
+        ticketId: String(firstId),
+        expectedHash: proposal.proposalHash,
+        expectedRevision: 1,
+        proposal: firstEdit,
+        proposalHash: firstHash,
+        reason: "Clarified which billing dates are checked.",
+        editorId: actor,
+        teamId: team,
+        channelId: channel,
+        messageTs: "1791547200.000001",
+      }),
+    ).toBe(true);
+    let token = crypto.randomUUID();
+    expect(await repository.reserveSlackRefresh(String(firstId), 2, token)).toBe(true);
+    expect(await repository.completeSlackRefresh(String(firstId), 2, token)).toBe(true);
+
+    const finalText =
+      "Final revision: <script>alert(1)</script> We will review both charges and their dates.";
+    const finalEdit = { ...firstEdit, draft_reply: finalText, summary: "Review both charges" };
+    const finalHash = await hashProposal({
+      ticketId: String(firstId),
+      revision: 3,
+      proposal: finalEdit,
+      evidence: proposal.policyEvidence,
+      promptVersion: proposal.promptVersion,
+    });
+    expect(
+      await repository.editProposal({
+        ticketId: String(firstId),
+        expectedHash: firstHash,
+        expectedRevision: 2,
+        proposal: finalEdit,
+        proposalHash: finalHash,
+        reason: "Adjusted the resolution after reviewing both charges.",
+        editorId: actor,
+        teamId: team,
+        channelId: channel,
+        messageTs: "1791547200.000001",
+      }),
+    ).toBe(true);
+    token = crypto.randomUUID();
+    expect(await repository.reserveSlackRefresh(String(firstId), 3, token)).toBe(true);
+    expect(await repository.completeSlackRefresh(String(firstId), 3, token)).toBe(true);
+
+    expect(
+      await repository.recordSlackDecision({
+        ticketId: String(firstId),
+        proposalHash: proposal.proposalHash,
+        proposalRevision: 1,
+        teamId: team,
+        channelId: channel,
+        messageTs: "1791547200.000001",
+        decision: "APPROVE",
+        actorId: actor,
+      }),
+    ).toBe(false);
+    expect(await repository.getSlackReviewState(String(firstId))).toMatchObject({
+      decision: null,
+      proposal_revision: 3,
+    });
+    expect(
+      await repository.recordSlackDecision({
+        ticketId: String(firstId),
+        proposalHash: finalHash,
+        proposalRevision: 3,
+        teamId: team,
+        channelId: channel,
+        messageTs: "1791547200.000001",
+        decision: "APPROVE",
+        actorId: actor,
+      }),
+    ).toBe(true);
+
+    const providers = stubProviders();
+    const workflow = await startWorkflow(firstId, "phase4-two-human-revisions-latest-only");
+    try {
+      expect(await workflow.getOutput()).toMatchObject({ status: "completed" });
+      expect(providers.sendRequests).toHaveLength(1);
+      expect(providers.sendRequests[0]?.body.text).toBe(finalText);
+      expect(providers.noteCalls).toHaveLength(1);
+      const note = providers.noteCalls[0] ?? "";
+      expect(note).toContain(`Revision 1 SHA-256: ${proposal.proposalHash}`);
+      expect(note).toContain(`Revision 2 SHA-256: ${firstHash}`);
+      expect(note).toContain(`Revision 3 SHA-256: ${finalHash}`);
+      expect(note).toContain("Clarified which billing dates are checked.");
+      expect(note).toContain("Adjusted the resolution after reviewing both charges.");
+      expect(note).toContain("First revision: confirm the charge dates before resolving.");
+      expect(note).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+      expect(note).not.toContain("<script>");
+      expect(note).toContain("Exact sent text:");
+      expect(note).toContain("Resend message ID: email-1");
+      expect(
+        (await repository.getProposalRevisionHistory(String(firstId))).map((item) => item.revision),
+      ).toEqual([1, 2, 3]);
+    } finally {
+      await workflow.dispose();
+    }
+  });
+
+  it("reloads and sends the latest edited revision when an already-waiting Workflow receives its decision", async () => {
+    await insertProposal(firstId);
+    await markPosted(firstId);
+    const repository = new TicketRepository(env.DB);
+    const instanceId = `phase4-waiting-edit-${firstId}-${crypto.randomUUID()}`;
+    await env.DB.prepare("UPDATE tickets SET workflow_instance_id = ? WHERE hubspot_ticket_id = ?")
+      .bind(instanceId, String(firstId))
+      .run();
+    const inspector = await introspectWorkflowInstance(env.TICKET_WORKFLOW, instanceId);
+    const providers = stubProviders();
+    await env.TICKET_WORKFLOW.create({ id: instanceId, params: { ticketId: String(firstId) } });
+    try {
+      await inspector.waitForStepResult({ name: "phase3-load-slack-review" });
+      const edited = {
+        ...proposal,
+        draft_reply: "Response edited while the Workflow was waiting: review both charge dates.",
+        summary: "Review both charge dates",
+      };
+      const editedHash = await hashProposal({
+        ticketId: String(firstId),
+        revision: 2,
+        proposal: edited,
+        evidence: proposal.policyEvidence,
+        promptVersion: proposal.promptVersion,
+      });
+      expect(
+        await repository.editProposal({
+          ticketId: String(firstId),
+          expectedHash: proposal.proposalHash,
+          expectedRevision: 1,
+          proposal: edited,
+          proposalHash: editedHash,
+          reason: "Clarified the solution while review was open.",
+          editorId: actor,
+          teamId: team,
+          channelId: channel,
+          messageTs: "1791547200.000001",
+        }),
+      ).toBe(true);
+      const token = crypto.randomUUID();
+      expect(await repository.reserveSlackRefresh(String(firstId), 2, token)).toBe(true);
+      expect(await repository.completeSlackRefresh(String(firstId), 2, token)).toBe(true);
+      expect(
+        await repository.recordSlackDecision({
+          ticketId: String(firstId),
+          proposalHash: editedHash,
+          proposalRevision: 2,
+          teamId: team,
+          channelId: channel,
+          messageTs: "1791547200.000001",
+          decision: "APPROVE",
+          actorId: actor,
+        }),
+      ).toBe(true);
+      await dispatchDecisionEvent(String(firstId), repository, env.TICKET_WORKFLOW);
+      await inspector.waitForStatus("complete");
+      expect(await inspector.getOutput()).toMatchObject({ status: "completed" });
+      expect(providers.sendRequests).toHaveLength(1);
+      expect(providers.sendRequests[0]?.body.text).toBe(edited.draft_reply);
+      expect(providers.noteCalls[0]).toContain(
+        "Response text: Response edited while the Workflow was waiting",
+      );
+    } finally {
+      await inspector.dispose();
     }
   });
 

@@ -16,6 +16,7 @@
     "test:integration": "vitest run phase1-discovery phase2-state phase3-state phase3-actions phase3-workflow phase3-scheduled phase4 phase5-retention",
     "smoke": "tsx scripts/smoke.ts",
     "verify:e2e": "tsx scripts/verify-e2e.ts",
+    "verify:edit": "tsx scripts/verify-edit.ts",
     "security:audit": "tsx scripts/security-audit.ts",
     "simulate:decision": "tsx scripts/simulate-decision.ts",
     "preflight": "tsx scripts/preflight.ts",

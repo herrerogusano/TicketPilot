@@ -1,8 +1,17 @@
 # TicketPilot execution checkpoint
 
-Status: DONE live gates; phases 0–6 implemented, deployed and provider/human/inbox/CD verified. Final evidence and checker changes are reviewed through PR7; exact merged commit and push-release outcome are available in GitHub. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by later entries.
+Status: PENDING_HUMAN_LIVE_ACCEPTANCE for Slack editing; technical local gates pass, publication/new live scenario next. Original MVP phases 0–6 remain DONE with historical provider/human/inbox/CD evidence. New revision/modal/inbox acceptance is separate and not yet claimed. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by later entries.
 
 ## Coordination
+
+## Slack response editing — 2026-10-09
+
+- Owner authorized Edit response in Slack with strict protection against sending superseded versions and durable HubSpot/D1 auditing. Scope: signed modal, save-only revisions, explicit latest-version approval, edit/approve CAS, immutable revision history and exact sent-text audit. No change to recipient/evidence/unknown-send protections or completed sends.
+- Branch feat/slack-edit-response from master124c020. One bounded Luna/high implementer owns source/migrations/tests; supervisor owns review/docs/publication/live evidence. Baseline clean. Read-only preflight authentication/provider reads and configured Free checks pass; intentionally unrun write/inference probes make overall incomplete, not an auth blocker.
+- Current wake PID97120/session48756 keeps display/system active without power-plan changes; release and verify termination before any final response. Previous helper entries are historical.
+- Supervisor review and independent `generate:types`, `typecheck`, `lint`, `test:coverage` pass:149tests/21files, branches460/538=85.50%, minimum80% per covered file; configured-secret/recipient audit89files and diff-check pass. Bounded implementer handed off stable source/tests. One Miniflare timeout-race fixture diagnostic is recorded in ACCEPTANCE, not relabeled as a live failure or concealed. Fixed expired-refresh queue starvation and isolated persistent synthetic outbox fixtures; no production state was reset.
+- Next: commit/PR, green checks and actual master-push CD, then create only the prepared synthetic ticket and request owner edit/save/approve/inbox confirmation once. Correlate PR merged SHA, Actions run and deployed Worker version; record final publication/live metadata in the PR and canonical vault status to avoid a docs-only deployment loop. Human evidence must not be simulated.
+- Read-only admission budget:6/20 for2026-10-09. Prepared one bounded post-deployment edit scenario, exact subject `[TP-DEMO] Edicion Slack 20261009-01 - activacion premium`, marker`TP_EDIT_20261009_01`; read-only search found none. Do not create until the edited Worker version is verified live. Private creator journals before its single write and forbids blind retry; reconcile exact subject/marker after uncertainty. Resume evidence command: protected `npm run verify:edit -- --ticket <ID>` (does not attest human interaction/inbox).
 
 ## Customer email presentation follow-up — 2026-10-09
 

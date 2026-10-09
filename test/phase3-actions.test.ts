@@ -1,9 +1,11 @@
 import { applyD1Migrations, env } from "cloudflare:test";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SLACK_ACTION_IDS } from "../src/adapters/slack";
+import type { TicketProposal } from "../src/domain/contracts";
 import { routeRequest, type SlackRouteServices } from "../src/index";
 import type { RuntimeConfigInput } from "../src/platform/config";
 import { TicketRepository } from "../src/state/ticket-repository";
+import { hashProposal } from "../src/workflows/ticket-workflow";
 
 const configuredInput = {
   TICKETPILOT_ENV: "demo",
@@ -21,8 +23,8 @@ const configuredInput = {
   TEST_RECIPIENT_EMAIL: "demo@example.test",
 } satisfies RuntimeConfigInput;
 
-const firstId = 7_300;
-const lastId = 7_399;
+let firstId = 7_300_000_000_000 + (Date.now() % 100_000_000);
+let lastId = firstId + 99;
 const baseDate = new Date();
 const secret = configuredInput.SLACK_SIGNING_SECRET;
 
@@ -63,6 +65,55 @@ function payload(id: number, overrides: Record<string, unknown> = {}): Record<st
         }),
       },
     ],
+    ...overrides,
+  };
+}
+
+function editClick(id: number, hash: string, revision: number): Record<string, unknown> {
+  return payload(id, {
+    trigger_id: "trigger-test-123",
+    actions: [
+      {
+        action_id: SLACK_ACTION_IDS.edit,
+        value: JSON.stringify({
+          ticket_id: String(id),
+          proposal_hash: hash,
+          proposal_revision: revision,
+        }),
+      },
+    ],
+  });
+}
+
+function editSubmission(
+  id: number,
+  hash: string,
+  revision: number,
+  values: { draft: string; summary: string | null; reason: string },
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    type: "view_submission",
+    team: { id: configuredInput.SLACK_TEAM_ID },
+    user: { id: configuredInput.SLACK_APPROVER_USER_ID },
+    view: {
+      callback_id: "ticketpilot_edit_response",
+      private_metadata: JSON.stringify({
+        ticket_id: String(id),
+        proposal_hash: hash,
+        proposal_revision: revision,
+        team_id: configuredInput.SLACK_TEAM_ID,
+        channel_id: configuredInput.SLACK_CHANNEL_ID,
+        message_ts: "1791547200.000001",
+      }),
+      state: {
+        values: {
+          draft_reply_block: { draft_reply: { type: "plain_text_input", value: values.draft } },
+          summary_block: { summary: { type: "plain_text_input", value: values.summary } },
+          reason_block: { reason: { type: "plain_text_input", value: values.reason } },
+        },
+      },
+    },
     ...overrides,
   };
 }
@@ -149,6 +200,8 @@ function makeContext(): { ctx: Pick<ExecutionContext, "waitUntil">; tasks: Promi
 
 describe("Phase 3 signed Slack callback route", () => {
   beforeEach(async () => {
+    firstId += 1_000;
+    lastId = firstId + 99;
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     await env.DB.prepare("DELETE FROM events WHERE ticket_id BETWEEN ? AND ?")
       .bind(String(firstId), String(lastId))
@@ -284,5 +337,445 @@ describe("Phase 3 signed Slack callback route", () => {
       .bind(String(firstId))
       .first<{ count: number }>();
     expect(count?.count).toBe(1);
+  });
+
+  it("opens the allowlisted edit modal, saves two immutable revisions, then approves only the latest card", async () => {
+    const repository = await setupReview(firstId);
+    const slackCalls: Array<{ method: string; body: Record<string, unknown> }> = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith("https://slack.com/api/")) {
+        slackCalls.push({
+          method: url.slice("https://slack.com/api/".length),
+          body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+        });
+      }
+      return Response.json({
+        ok: true,
+        channel: configuredInput.SLACK_CHANNEL_ID,
+        ts: "1791547200.000001",
+      });
+    });
+    const services = makeServices(async () => undefined);
+    const { ctx, tasks } = makeContext();
+    let current = await repository.getProposal(String(firstId));
+    expect(current).not.toBeNull();
+    const open = await routeRequest(
+      await signedRequest(form(editClick(firstId, current?.proposalHash ?? "", 1))),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(open.status).toBe(200);
+    expect(slackCalls.at(-1)?.method).toBe("views.open");
+    expect(JSON.stringify(slackCalls.at(-1)?.body)).toContain(
+      "Internal reason and solution changes",
+    );
+
+    const firstDraft =
+      "First revised solution: confirm the duplicate charge and review the billing dates.";
+    const firstSubmit = await routeRequest(
+      await signedRequest(
+        form(
+          editSubmission(firstId, current?.proposalHash ?? "", 1, {
+            draft: firstDraft,
+            summary: null,
+            reason: "Clarified the billing review solution.",
+          }),
+        ),
+      ),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(await firstSubmit.json()).toMatchObject({ response_action: "clear" });
+    await Promise.all(tasks.splice(0));
+    current = await repository.getProposal(String(firstId));
+    expect(current).toMatchObject({
+      revision: 2,
+      draft_reply: firstDraft,
+      summary: "Duplicate charge review",
+    });
+    const duplicateSubmit = await routeRequest(
+      await signedRequest(
+        form(
+          editSubmission(firstId, String(firstId).padStart(64, "0").slice(-64), 1, {
+            draft: firstDraft,
+            summary: "",
+            reason: "Clarified the billing review solution.",
+          }),
+        ),
+      ),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(await duplicateSubmit.json()).toMatchObject({ response_action: "errors" });
+    expect((await repository.getProposal(String(firstId)))?.revision).toBe(2);
+
+    const firstHash = current?.proposalHash ?? "";
+    const secondDraft =
+      "Final revised solution: review both amounts and dates under the billing policy.";
+    const secondSubmit = await routeRequest(
+      await signedRequest(
+        form(
+          editSubmission(firstId, firstHash, 2, {
+            draft: secondDraft,
+            summary: "Review two charges",
+            reason: "Updated the proposed resolution after checking the policy.",
+          }),
+        ),
+      ),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(await secondSubmit.json()).toMatchObject({ response_action: "clear" });
+    await Promise.all(tasks.splice(0));
+    current = await repository.getProposal(String(firstId));
+    expect(current).toMatchObject({
+      revision: 3,
+      draft_reply: secondDraft,
+      summary: "Review two charges",
+    });
+    const history = await repository.getProposalRevisionHistory(String(firstId));
+    expect(history).toHaveLength(3);
+    expect(history.map((item) => item.proposal_hash)).toEqual([
+      String(firstId).padStart(64, "0").slice(-64),
+      expect.any(String),
+      expect.any(String),
+    ]);
+    expect(history[1]).toMatchObject({
+      edited_by: configuredInput.SLACK_APPROVER_USER_ID,
+      edit_reason: "Clarified the billing review solution.",
+    });
+    expect(history[2]).toMatchObject({
+      edited_by: configuredInput.SLACK_APPROVER_USER_ID,
+      edit_reason: "Updated the proposed resolution after checking the policy.",
+    });
+    expect(slackCalls.filter((call) => call.method === "chat.update")).toHaveLength(2);
+    expect(JSON.stringify(slackCalls.at(-1)?.body)).toContain("Revision: 3 (human edited)");
+    expect(JSON.stringify(slackCalls.at(-1)?.body)).toContain(current?.proposalHash);
+
+    const approved = await routeRequest(
+      await signedRequest(
+        form(
+          payload(firstId, {
+            actions: [
+              {
+                action_id: SLACK_ACTION_IDS.approve,
+                value: JSON.stringify({
+                  ticket_id: String(firstId),
+                  proposal_hash: current?.proposalHash,
+                  proposal_revision: 3,
+                }),
+              },
+            ],
+          }),
+        ),
+      ),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(approved.status).toBe(200);
+    await Promise.all(tasks);
+    expect(await repository.getSlackReviewState(String(firstId))).toMatchObject({
+      decision: "APPROVE",
+      proposal_revision: 3,
+      proposal_hash: current?.proposalHash,
+    });
+  });
+
+  it("rejects stale modal submissions, old-version approvals, empty or oversized edits, and edits after approval", async () => {
+    const repository = await setupReview(firstId);
+    const services = makeServices(async () => undefined);
+    const { ctx, tasks } = makeContext();
+    const original = await repository.getProposal(String(firstId));
+    expect(original).not.toBeNull();
+    const changed: TicketProposal = {
+      category: "BILLING",
+      priority: "MEDIUM",
+      evidence_status: "SUPPORTED",
+      summary: "Duplicate charge review",
+      draft_reply: "A current human-edited response.",
+      cited_policy_keys: ["billing-double-charge"],
+      rationale: "Policy permits billing review.",
+    };
+    const hash = await hashProposal({
+      ticketId: String(firstId),
+      revision: 2,
+      proposal: changed,
+      evidence: original?.policyEvidence ?? [],
+      promptVersion: original?.promptVersion ?? "ticketpilot-v1",
+    });
+    expect(
+      await repository.editProposal({
+        ticketId: String(firstId),
+        expectedHash: original?.proposalHash ?? "",
+        expectedRevision: 1,
+        proposal: changed,
+        proposalHash: hash,
+        reason: "A solution clarification.",
+        editorId: configuredInput.SLACK_APPROVER_USER_ID,
+        teamId: configuredInput.SLACK_TEAM_ID,
+        channelId: configuredInput.SLACK_CHANNEL_ID,
+        messageTs: "1791547200.000001",
+      }),
+    ).toBe(true);
+    const token = crypto.randomUUID();
+    expect(await repository.reserveSlackRefresh(String(firstId), 2, token)).toBe(true);
+    expect(await repository.completeSlackRefresh(String(firstId), 2, token)).toBe(true);
+    const stale = await routeRequest(
+      await signedRequest(
+        form(
+          editSubmission(firstId, original?.proposalHash ?? "", 1, {
+            draft: "A stale modal response",
+            summary: "",
+            reason: "Old modal.",
+          }),
+        ),
+      ),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(stale.status).toBe(200);
+    expect(await stale.json()).toMatchObject({ response_action: "errors" });
+    const staleApprove = await routeRequest(
+      await signedRequest(form(payload(firstId))),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(staleApprove.status).toBe(200);
+    expect((await repository.getSlackReviewState(String(firstId)))?.decision).toBeNull();
+
+    const empty = await routeRequest(
+      await signedRequest(
+        form(
+          editSubmission(firstId, hash, 2, {
+            draft: "",
+            summary: "",
+            reason: "Missing response.",
+          }),
+        ),
+      ),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(await empty.json()).toMatchObject({ response_action: "errors" });
+    const oversized = await routeRequest(
+      await signedRequest(
+        form(
+          editSubmission(firstId, hash, 2, {
+            draft: "x".repeat(1501),
+            summary: "",
+            reason: "Too long.",
+          }),
+        ),
+      ),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(await oversized.json()).toMatchObject({ response_action: "errors" });
+
+    expect(
+      await repository.recordSlackDecision({
+        ticketId: String(firstId),
+        proposalHash: hash,
+        proposalRevision: 2,
+        teamId: configuredInput.SLACK_TEAM_ID,
+        channelId: configuredInput.SLACK_CHANNEL_ID,
+        messageTs: "1791547200.000001",
+        decision: "APPROVE",
+        actorId: configuredInput.SLACK_APPROVER_USER_ID,
+      }),
+    ).toBe(true);
+    const afterApproval = await routeRequest(
+      await signedRequest(
+        form(
+          editSubmission(firstId, hash, 2, {
+            draft: "Should not change after approval.",
+            summary: "",
+            reason: "Too late.",
+          }),
+        ),
+      ),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(await afterApproval.json()).toMatchObject({ response_action: "errors" });
+    expect((await repository.getProposal(String(firstId)))?.draft_reply).toBe(changed.draft_reply);
+    await Promise.all(tasks);
+  });
+
+  it("keeps approval blocked when Slack card refresh fails, then cron retries the exact current revision", async () => {
+    const repository = await setupReview(firstId);
+    const original = await repository.getProposal(String(firstId));
+    expect(original).not.toBeNull();
+    let failUpdate = true;
+    const updates: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith("/chat.update")) {
+        updates.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+        if (failUpdate) return Response.json({ ok: false, error: "internal_error" });
+      }
+      return Response.json({
+        ok: true,
+        channel: configuredInput.SLACK_CHANNEL_ID,
+        ts: "1791547200.000001",
+      });
+    });
+    const services = makeServices(async () => undefined);
+    const { ctx, tasks } = makeContext();
+    const failedSubmit = await routeRequest(
+      await signedRequest(
+        form(
+          editSubmission(firstId, original?.proposalHash ?? "", 1, {
+            draft: "Current response waiting for Slack refresh.",
+            summary: "",
+            reason: "Corrected the solution.",
+          }),
+        ),
+      ),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(await failedSubmit.json()).toMatchObject({ response_action: "clear" });
+    await Promise.all(tasks.splice(0));
+    let state = await repository.getSlackReviewState(String(firstId));
+    expect(state?.slack_refresh_revision).toBe(2);
+    expect(
+      await repository.recordSlackDecision({
+        ticketId: String(firstId),
+        proposalHash: state?.proposal_hash ?? "",
+        proposalRevision: 2,
+        teamId: configuredInput.SLACK_TEAM_ID,
+        channelId: configuredInput.SLACK_CHANNEL_ID,
+        messageTs: "1791547200.000001",
+        decision: "APPROVE",
+        actorId: configuredInput.SLACK_APPROVER_USER_ID,
+      }),
+    ).toBe(false);
+
+    failUpdate = false;
+    await env.DB.prepare(
+      "UPDATE tickets SET slack_refresh_locked_until = ? WHERE hubspot_ticket_id = ?",
+    )
+      .bind(new Date(Date.now() - 1_000).toISOString(), String(firstId))
+      .run();
+    const { reconcilePendingSlackRefresh } = await import("../src/index");
+    await reconcilePendingSlackRefresh(env);
+    state = await repository.getSlackReviewState(String(firstId));
+    expect(state?.slack_refresh_revision).toBeNull();
+    expect(updates).toHaveLength(2);
+    expect(JSON.stringify(updates[1])).toContain("Current response waiting for Slack refresh.");
+    expect((await repository.getProposal(String(firstId)))?.revision).toBe(2);
+  });
+
+  it("serializes a concurrent human edit and approval so only one current revision wins", async () => {
+    const repository = await setupReview(firstId);
+    const original = await repository.getProposal(String(firstId));
+    expect(original).not.toBeNull();
+    const proposal = {
+      category: "BILLING" as const,
+      priority: "MEDIUM" as const,
+      evidence_status: "SUPPORTED" as const,
+      summary: "Updated review",
+      draft_reply: "Updated but not approved response.",
+      cited_policy_keys: ["billing-double-charge" as const],
+      rationale: "Policy permits billing review.",
+    };
+    const hash = await hashProposal({
+      ticketId: String(firstId),
+      revision: 2,
+      proposal,
+      evidence: original?.policyEvidence ?? [],
+      promptVersion: original?.promptVersion ?? "ticketpilot-v1",
+    });
+    const outcomes = await Promise.all([
+      repository.editProposal({
+        ticketId: String(firstId),
+        expectedHash: original?.proposalHash ?? "",
+        expectedRevision: 1,
+        proposal,
+        proposalHash: hash,
+        reason: "Solution update.",
+        editorId: configuredInput.SLACK_APPROVER_USER_ID,
+        teamId: configuredInput.SLACK_TEAM_ID,
+        channelId: configuredInput.SLACK_CHANNEL_ID,
+        messageTs: "1791547200.000001",
+      }),
+      repository.recordSlackDecision({
+        ticketId: String(firstId),
+        proposalHash: original?.proposalHash ?? "",
+        proposalRevision: 1,
+        teamId: configuredInput.SLACK_TEAM_ID,
+        channelId: configuredInput.SLACK_CHANNEL_ID,
+        messageTs: "1791547200.000001",
+        decision: "APPROVE",
+        actorId: configuredInput.SLACK_APPROVER_USER_ID,
+      }),
+    ]);
+    expect(outcomes.filter(Boolean)).toHaveLength(1);
+    const state = await repository.getSlackReviewState(String(firstId));
+    if (outcomes[0])
+      expect(state).toMatchObject({
+        decision: null,
+        proposal_revision: 2,
+        slack_refresh_revision: 2,
+      });
+    else expect(state).toMatchObject({ decision: "APPROVE", proposal_revision: 1 });
+  });
+
+  it("does not open edits for expired, wrong-user, wrong-team, wrong-channel, or wrong-message callbacks", async () => {
+    const repository = await setupReview(firstId);
+    const proposal = await repository.getProposal(String(firstId));
+    expect(proposal).not.toBeNull();
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      return Response.json({ ok: true });
+    });
+    const services = makeServices(async () => undefined);
+    const { ctx } = makeContext();
+    const cases: Array<{ override: Record<string, unknown>; status: number }> = [
+      { override: { user: { id: "UOTHER" } }, status: 403 },
+      { override: { team: { id: "TOTHER" } }, status: 403 },
+      { override: { channel: { id: "COTHER" } }, status: 403 },
+      { override: { message: { ts: "1791547201.000001" } }, status: 200 },
+    ];
+    for (const { override, status } of cases) {
+      const response = await routeRequest(
+        await signedRequest(
+          form({
+            ...editClick(firstId, proposal?.proposalHash ?? "", 1),
+            ...override,
+          }),
+        ),
+        configuredInput,
+        services,
+        ctx,
+      );
+      expect(response.status).toBe(status);
+    }
+    expect(calls).toHaveLength(0);
+    await env.DB.prepare("UPDATE tickets SET slack_review_deadline = ? WHERE hubspot_ticket_id = ?")
+      .bind(new Date(Date.now() - 1_000).toISOString(), String(firstId))
+      .run();
+    const expired = await routeRequest(
+      await signedRequest(form(editClick(firstId, proposal?.proposalHash ?? "", 1))),
+      configuredInput,
+      services,
+      ctx,
+    );
+    expect(expired.status).toBe(200);
+    expect(calls).toHaveLength(0);
+    expect((await repository.getProposal(String(firstId)))?.revision).toBe(1);
   });
 });
