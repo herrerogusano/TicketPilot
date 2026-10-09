@@ -1,11 +1,11 @@
 # TicketPilot execution checkpoint
 
-Status: implementation in progress, phase 1. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09.
+Status: phases 0–6 technical implementation/provider scenarios/documentation complete; final packaging PR checks in progress. Final acceptance remains BLOCKED_EXTERNAL_ACCESS plus PENDING_HUMAN_LIVE_ACCEPTANCE, not DONE. PLAN.md and AGENTS.md remain authoritative. Last updated 2026-10-09. Historical checkpoints below are superseded by later entries.
 
 ## Coordination
 
 - Supervisor owns integration, infrastructure, protected credentials, acceptance and documentation.
-- Reusable implementation agent: /root/implementation, gpt-6-luna, high. Phase 0 reviewed; phase 1 delegated.
+- Reusable implementation agent: /root/implementation, gpt-6-luna, high. Implementation and bounded adapter coverage handoffs completed; supervisor reviewed and integrated.
 - Shared vault delegation, evaluation and Git/CD workflows consulted. Do not duplicate their guides.
 - Do not display browser work unnecessarily; use targeted background inspection and CLI/API.
 
@@ -99,3 +99,21 @@ Status: implementation in progress, phase 1. PLAN.md and AGENTS.md remain author
 - Unknown seed437245230283 was examined: complete phase2 Workflow with manual_review output; D1 insufficient evidence, no Slack receipt/attempt and no Resend receipt. Root restarted ONLY this safe cached proposal for the initial manual-only Slack provider gate. Supported four remain unposted until Phase4 delivery protection is integrated.
 - Implementation worker preparing Phase4 offline; hold production edits until root commits Phase3 snapshot. No live email authorization inferred from event simulation.
 - Wake PID113256/session78877 continues active; restore before ANY final response.
+- Real unknown-only Slack post readback POSTED/attempts1/ts1791509348.772139; all five Resend receipts remain null and four supported cases remain NOT_STARTED. Existing Socket Mode was on; switched to signed HTTP transport, saved exact /slack/actions URL and reloaded to verify persistence. No new Slack scopes/credentials.
+- Phase3 checkpointc848d17 plus ancestry-only mergefce6b26; baseline20bf251 and origin/master trees were identical, resolved squash-only conflicts preserving phase3, diff against c848d17 empty. PR3 attached, both CIchecks37870044744/37870057991 passed. Worker released on feat/approved-delivery for Phase4 source/tests only.
+- PR3 merged squashmaster9163155; masterCI37870240396 passed. Release37870240386 qualitypassed/deployskipped; no CD evidence. Fresh live Workflow statuswaiting/noerror corroborates durable manual-review wait despite background canceled tail lifecycle.
+- Root CLI smoke actualreads passed; security audit exact configured secrets/recipient comparison passed70files. verify:e2e actualread reportsPENDING_LIVE_SCENARIOS; no human/inbox claims. Root CLI paths/package/config are root-owned.
+- Root Phase5 independent event-retention helper/migration0006/local2tests added (passed); NOT wired/deployed yet. 30day events-only/max100 perhour; durable ticket/send identities retained. Coverage test-onlyistanbul5.0.3 pinned/configured, not measured yet.
+- Phase4 supervisor early review returned date-format retry cutoff, cached per-attempt429 reads, ten-minute send-window, stored-candidate/direct-noteverification and fatal400/401/403noautowrite fixes before live deployment.
+
+## Phase 4–5 provider checkpoint
+
+- Frozen Phase4 d304ba8; critical early-approved-after-post race corrected93e91f5 with actual Workflow regression(oneemail/onenote). Combined fixture split removed workerd cancellation diagnostics; only deliberately forced phase3timeout remains. Both updatedPR4checks37871812108/37871817158 passed; mergedmasterbb29e40.
+- Root independently passed119tests/19files, typecheck/lint/diff; measuredIstanbul domain/adapter branches391/450=86.88%. Coverage includes every domain/adapter file, no artificial exclusions. Meaningful negative adapter tests are newphase5-adapters file.
+- Retention wired hourly using actual scheduledTime UTCminute0, max100 events older30days. Four local tests include source outage independence, recent/uncertain-send identity preservation and off-slot no-prune. Newfixture initially allowed admission recovery probes; correcting its creation-status toSTARTED removed those test-only diagnostics.
+- Remote0005+0006 applied; reviewedversione3c1a649-71b0-41c9-8196-3fb0b883843f deployed/startup19ms. Transient plaintext file removed/absencechecked; live smokepassedagain.
+- Each four exactsupported seeds was examined complete proposal_saved onphase2version; D1awaiting/supporteddraft withzeroSlack/emailattempts/receipts before allowedrestart. Cachedimmutableproposals reused; nowallfiveSlackpostsattempt1. No extraAI.
+- Signed simulator (explicitplanpermitted unattended gate, NEVER human) approvedbilling436649189587 twice(200/200,232/66ms). ActualD1COMPLETED, oneResendattempt/receipt01a11e5f-e8ae-738c-8941-dfccbcf8af1e, oneCRMcreate/receipt526051777743. DirectliveGET verifiednote marker+providerreceipt+ticketassociation; associatedmarkeruniqueness readback passed. Exactlyoneapproval/eventdelivery/emailacceptance/auditcompletion event. Workflowcomplete/noerror.
+- Signed simulator rejectedCSV437259884759 twice(200/200,230/63ms); actualREJECTED/zeroResendattempts, Workflowcomplete/noerror. Unknown437245230283 remainsmanual/insufficient/noApprove/zeroAI+email.
+- Human gates reserved: physically Approve premium437231559928, Reject password436737423588; bothlivepostedawaiting/zeroemailattempts. Read-onlyverify:e2e confirmsallthree technicalcases but reportsPENDING_HUMAN_LIVE_ACCEPTANCE/nonzero. Do not execute operatorattestation autonomously or claim priorsetupemail receipt.
+- Finalremaining: Phase6 truthfulevidence/docs/vault, finalquality+GitPR5/releaseobservations, actualrepeatcron/CPU/quota readback, nosecret audit. CDtokenrequirespendingexplicitauthorization; no broadOAuthupload. Keepwake113256/78877 active until finalrelease.

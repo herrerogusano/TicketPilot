@@ -1,0 +1,18 @@
+{
+  "ticket_id": "437259884759",
+  "decision": "REJECT",
+  "source": "SIGNED_SLACK_SIMULATOR",
+  "human_click": false,
+  "inbox_confirmed": false,
+  "requested_callbacks": 2,
+  "created_at": "2026-10-09T01:56:14.600Z",
+  "outcome": "ACKNOWLEDGED_NOT_PROVIDER_OR_INBOX_PROOF",
+  "statuses": [
+    200,
+    200
+  ],
+  "round_trip_ms": [
+    230,
+    63
+  ]
+}

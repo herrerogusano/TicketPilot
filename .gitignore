@@ -11,3 +11,4 @@ artifacts/preflight-redacted.json
 artifacts/preflight-resend.json
 artifacts/preflight-smoke-manifest.json
 seed-manifest*.json
+artifacts/human-acceptance.json

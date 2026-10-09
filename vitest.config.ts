@@ -16,5 +16,11 @@ export default defineConfig({
   ],
   test: {
     include: ["test/**/*.test.ts"],
+    coverage: {
+      provider: "istanbul",
+      include: ["src/domain/**/*.ts", "src/adapters/**/*.ts"],
+      reporter: ["text", "json-summary", "html"],
+      thresholds: { branches: 80, perFile: true },
+    },
   },
 });

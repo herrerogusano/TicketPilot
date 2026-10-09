@@ -23,6 +23,11 @@ List secret **names**, never values. Do not select the email payload, draft text
 npm run typecheck
 npm run lint
 npm test
+npm run test:integration
+npm run test:coverage
+npm run smoke
+npm run security:audit
+npm run verify:e2e
 npm run db:migrate:remote
 npm run deploy
 ```
@@ -31,6 +36,8 @@ The last two commands mutate the remote demo and require authenticated, scoped a
 
 If a provider returns 401/403, confirm the correct demo account and existing least-privilege grants. A Resend send-only key cannot list domains: that failure is not a reason to broaden it. Notion root sharing and Slack bot channel membership are separate from token validity. Redact provider error bodies and credentials before recording diagnostics.
 
+`smoke`, `security:audit` and `verify:e2e` are CLI-only and require the protected demo process environment. Smoke is read-only apart from a deliberately unauthorized action that must return401; it sends no email, inference or Slack post. Verification checks the exact note's marker/provider receipt/ticket association and a unique associated marker. A nonzero pending verification is not permission to replay a send.
+
 ## Bounded recovery
 
 Duplicate polling must reuse the unique ticket row and deterministic `ticketpilot-<HubSpot ID>` instance. Admission counters must not be decremented or reset to admit more than the daily cap. A lost Workflow-create response is reconciled by its deterministic ID; exhausted attempts stop for manual review rather than running indefinitely.
@@ -38,6 +45,12 @@ Duplicate polling must reuse the unique ticket row and deterministic `ticketpilo
 Seed reruns use their ignored manifests and exact markers. After an uncertain create result, reconcile existing objects first. Never remove a manifest to force another create. Multiple matching objects require manual investigation, not arbitrary selection.
 
 Once a real email has been accepted, recovery may write or verify **the HubSpot audit note only**. Do not restart the sending path to fix a note.
+
+The scheduled audit reconciliation examines at most one row per pass independently of HubSpot discovery. A known created note ID is persisted as a candidate before direct verification. A candidate or unknown create is read/reconciled only, never blindly recreated. Definitive429 may permit at most three safe creates; fatal auth/validation errors stop automatic writes. Accepted email receipts are never cleared during audit recovery.
+
+Resend retries use the identical frozen body and `ticketpilot/<ticketId>/v1`, at most three attempts within ten minutes for definitive429 only. Malformed acceptance,409,408,5xx and network ambiguity stop with `SEND_UNKNOWN`; no automatic resend. Approval arriving while the Slack receipt is being persisted continues through the same durable gated delivery path.
+
+Redacted event history is pruned after30days in hourly batches of at most100. Ticket rows, approvals, immutable send payloads, provider/note receipts and usage reservations are retained. Bounded backlog draining is not an immediate strict TTL; never delete durable identity rows just to force another send.
 
 `SEND_UNKNOWN` means the request could have been accepted. Inspect provider evidence manually; do not automatically resend. Resend's finite idempotency window does not prove permanent exactly-once delivery. A 409 is not a receipt. Record a provider ID only from verified acceptance evidence; inbox delivery requires the owner separately.
 
@@ -49,7 +62,7 @@ Wrangler supports the following operator command:
 npx wrangler workflows instances restart ticketpilot-workflow INSTANCE_ID
 ```
 
-Restart erases Workflow intermediate execution state and replays it. It is **not** a general retry command. During development the supervisor may restart a specific seed instance whose verified output is the phase-1 safe placeholder, before any draft/message/email side effects. Never use this command for `SEND_IN_PROGRESS`, `SEND_UNKNOWN`, an accepted email or unresolved external writes. Durable D1 guards still need to be checked before any permitted replay.
+Restart erases Workflow intermediate execution state and replays it. It is **not** a general retry command. During development the supervisor may resume a specific seed instance only after examining its completed phase-1 placeholder or phase-2 immutable proposal, and independently verifying zero Slack post attempts/receipts, zero email attempts/receipts and no unresolved writes. The phase-2 cached proposal must be reused, not regenerated. Never use this command for an in-flight Slack post, `SEND_IN_PROGRESS`, `SEND_UNKNOWN`, an accepted email or unresolved external writes. Durable D1 guards still need to be checked before any permitted replay.
 
 ## Pause and cleanup
 

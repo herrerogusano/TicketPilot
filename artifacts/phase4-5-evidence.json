@@ -1,0 +1,50 @@
+{
+  "generated_at": "2026-10-09T01:56:34.435Z",
+  "evidence_label": "LIVE_PROVIDER",
+  "worker_version": "e3c1a649-71b0-41c9-8196-3fb0b883843f",
+  "workflow_version": "39236226-5a25-4d15-8130-d9e4a6f5000a",
+  "remote_migrations": ["0005_approved_email_delivery.sql", "0006_event_retention.sql"],
+  "supervisor_tests": { "files": 19, "tests": 119, "passed": true },
+  "domain_adapter_branch_coverage": { "covered": 391, "total": 450, "percent": 86.88 },
+  "decision_source": "SIGNED_SLACK_SIMULATOR_NOT_HUMAN",
+  "scenario_a": {
+    "ticket_id": "436649189587",
+    "state": "COMPLETED",
+    "callback_statuses": [200, 200],
+    "callback_round_trip_ms": [232, 66],
+    "slack_post_attempts": 1,
+    "decision_event_delivery_attempts": 1,
+    "resend_attempts": 1,
+    "resend_message_id": "01a11e5f-e8ae-738c-8941-dfccbcf8af1e",
+    "crm_audit_attempts": 1,
+    "hubspot_note_id": "526051777743",
+    "note_marker_receipt_association_and_uniqueness_readback": true,
+    "acceptance_events": 1,
+    "audit_completion_events": 1,
+    "workflow_complete_without_error": true
+  },
+  "scenario_b": {
+    "ticket_id": "437259884759",
+    "state": "REJECTED",
+    "callback_statuses": [200, 200],
+    "callback_round_trip_ms": [230, 63],
+    "resend_attempts": 0,
+    "workflow_complete_without_error": true
+  },
+  "scenario_c": {
+    "ticket_id": "437245230283",
+    "state": "NEEDS_MANUAL_REVIEW",
+    "evidence_status": "INSUFFICIENT_EVIDENCE",
+    "ai_attempts": 0,
+    "slack_post_attempts": 1,
+    "resend_attempts": 0,
+    "approval_available": false
+  },
+  "reserved_human_approve_ticket_id": "437231559928",
+  "reserved_human_reject_ticket_id": "436737423588",
+  "human_click_verified": false,
+  "application_inbox_confirmed": false,
+  "github_cd_verified": false,
+  "transient_plaintext_deployment_file_removed": true,
+  "note": "API acceptance is not inbox delivery. Existing immutable grounded drafts were reused without additional AI inference. No paid upgrade or customer recipient."
+}
