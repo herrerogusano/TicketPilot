@@ -107,6 +107,14 @@ async function startWorkflow(id: number, label: string, eventPayload?: unknown) 
 
 describe("Phase 3 TicketWorkflow runtime", () => {
   beforeEach(async () => {
+    Object.defineProperty(env, "TEST_RECIPIENT_EMAIL", {
+      value: "ticketpilot-owner@example.test",
+      configurable: true,
+    });
+    Object.defineProperty(env, "RESEND_API_KEY", {
+      value: `re_${"x".repeat(24)}`,
+      configurable: true,
+    });
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     await env.DB.prepare("DELETE FROM events WHERE ticket_id BETWEEN ? AND ?")
       .bind(String(firstId), String(lastId))
@@ -361,10 +369,7 @@ describe("Phase 3 TicketWorkflow runtime", () => {
         params: { ticketId: String(firstId) },
       });
       await inspector.waitForStatus("complete");
-      expect(await inspector.getOutput()).toMatchObject({
-        status: "decision_received",
-        decision: "APPROVE",
-      });
+      expect(await inspector.getOutput()).toMatchObject({ status: "send_unknown" });
       expect((await repository.getSlackReviewState(String(firstId)))?.decision).toBe("APPROVE");
     } finally {
       await inspector.dispose();

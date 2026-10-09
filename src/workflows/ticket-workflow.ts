@@ -22,6 +22,7 @@ import { selectPolicies } from "../domain/policy-selection";
 import { NO_MODEL_PROMPT_VERSION, PROMPT_VERSION } from "../domain/prompt";
 import { TICKET_DECISION_EVENT_TYPE } from "../state/decision-events";
 import { type SlackReviewState, TicketRepository } from "../state/ticket-repository";
+import { handleDurableDecision } from "./email-delivery";
 
 export type TicketWorkflowParams = { ticketId: string };
 export type Phase2Result = {
@@ -32,7 +33,12 @@ export type Phase2Result = {
     | "decision_received"
     | "expired"
     | "manual_review"
-    | "skipped";
+    | "skipped"
+    | "email_accepted"
+    | "completed"
+    | "send_failed"
+    | "send_unknown"
+    | "crm_audit_pending";
   evidence_status?: "SUPPORTED" | "INSUFFICIENT_EVIDENCE";
   cited_policy_keys?: string[];
   decision?: "APPROVE" | "REJECT";
@@ -291,7 +297,7 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
     }
     if (state.decision !== null) {
       return durableDecisionAllowed(state, this.env.SLACK_APPROVER_USER_ID)
-        ? decisionResult(state.decision, proposal)
+        ? handleDurableDecision(step, this.env, ticketId, proposal, state)
         : { status: "manual_review", evidence_status: proposal.evidence_status };
     }
     if (state.state === "EXPIRED" || state.state === "REJECTED") {
@@ -363,7 +369,7 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
     }
     if (state.decision !== null) {
       return durableDecisionAllowed(state, this.env.SLACK_APPROVER_USER_ID)
-        ? decisionResult(state.decision, proposal)
+        ? handleDurableDecision(step, this.env, ticketId, proposal, state)
         : { status: "manual_review", evidence_status: proposal.evidence_status };
     }
 
@@ -377,7 +383,7 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
       );
       return afterExpiry?.decision !== null && afterExpiry?.decision !== undefined
         ? durableDecisionAllowed(afterExpiry, this.env.SLACK_APPROVER_USER_ID)
-          ? decisionResult(afterExpiry.decision, proposal)
+          ? handleDurableDecision(step, this.env, ticketId, proposal, afterExpiry)
           : { status: "manual_review", evidence_status: proposal.evidence_status }
         : { status: afterExpiry?.state === "EXPIRED" ? "expired" : "manual_review" };
     }
@@ -394,7 +400,7 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
       );
       if (current?.decision !== null && current?.decision !== undefined) {
         return durableDecisionAllowed(current, this.env.SLACK_APPROVER_USER_ID)
-          ? decisionResult(current.decision, proposal)
+          ? handleDurableDecision(step, this.env, ticketId, proposal, current)
           : { status: "manual_review", evidence_status: proposal.evidence_status };
       }
       await step.do("phase3-expire-after-timeout", nonRetryableStep, () =>
@@ -405,7 +411,7 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
       );
       if (afterExpiry?.decision !== null && afterExpiry?.decision !== undefined) {
         return durableDecisionAllowed(afterExpiry, this.env.SLACK_APPROVER_USER_ID)
-          ? decisionResult(afterExpiry.decision, proposal)
+          ? handleDurableDecision(step, this.env, ticketId, proposal, afterExpiry)
           : { status: "manual_review", evidence_status: proposal.evidence_status };
       }
       if (afterExpiry?.state === "EXPIRED") return { status: "expired" };
@@ -433,7 +439,7 @@ export class TicketWorkflow extends WorkflowEntrypoint<Env, TicketWorkflowParams
     ) {
       return { status: "manual_review", evidence_status: proposal.evidence_status };
     }
-    return decisionResult(current.decision, proposal);
+    return handleDurableDecision(step, this.env, ticketId, proposal, current);
   }
 
   private async markFailure(
@@ -463,15 +469,6 @@ async function markSlackPostUnknownIfStale(
     new Date(startedAtMs + SLACK_POST_LEASE_MS),
     new Date(now),
   );
-}
-
-function decisionResult(decision: "APPROVE" | "REJECT", proposal: StoredProposal): Phase2Result {
-  return {
-    status: "decision_received",
-    decision,
-    evidence_status: proposal.evidence_status,
-    cited_policy_keys: proposal.cited_policy_keys,
-  };
 }
 
 function isTicketDecisionEvent(value: unknown): value is TicketDecisionEvent {

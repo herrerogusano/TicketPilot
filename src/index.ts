@@ -15,6 +15,7 @@ import {
   reconcilePendingDecisionEvents,
 } from "./state/decision-events";
 import { TicketRepository } from "./state/ticket-repository";
+import { reconcilePendingCrmAudits } from "./workflows/email-delivery";
 
 export { TicketWorkflow } from "./workflows/ticket-workflow";
 
@@ -143,6 +144,12 @@ export async function runScheduledTasks(
     logEvent("cron.decision_events_reconciled", delivery);
   } catch {
     logEvent("cron.decision_events_failed");
+  }
+  try {
+    const audit = await reconcilePendingCrmAudits(env);
+    logEvent("cron.crm_audits_reconciled", audit);
+  } catch {
+    logEvent("cron.crm_audits_failed");
   }
   try {
     const report = await runDiscovery({
